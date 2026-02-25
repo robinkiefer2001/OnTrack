@@ -28,6 +28,21 @@
                     <li class="nav-item">
                         <a class="nav-link" href=".\projects">Projects</a>
                     </li>
+                        <li class="nav-item">
+                        <a class="nav-link" href=".\tasks">Manage Projects</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href=".\settings">Settings</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href=".\reports">Reports</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href=".\calendar">Calendar</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href=".\admin">Admin</a>
+                    </li>
                 </ul>
             </div>
         </div>
