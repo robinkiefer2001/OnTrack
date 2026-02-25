@@ -1,5 +1,5 @@
 <header>
-    <h1 class="sideTitel">onTrack</h1>
+    <h1 class="sideTitle">onTrack</h1>
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
         <div class="container-fluid">
             <button
@@ -22,7 +22,7 @@
                         >
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href=".\projects">Projects</a>
+                        <a class="nav-link" href=".\newproject">New Project</a>
                     </li>
                 </ul>
             </div>

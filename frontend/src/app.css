@@ -9,8 +9,24 @@ h1 {
     margin: 0;
 }
 
+.formPrj {
+  margin-left: 2rem;
+}
+
 h2 {
   margin: 2rem;
+}
+
+.divFormPrjLeft {
+  flex: 1;
+  margin-right: 2rem;
+  margin-top: 2rem;
+}
+
+.divFormPrjRight {
+  flex: 1;
+  margin-right: 4rem;
+  margin-top: 2rem;
 }
 
 .sideButton {
@@ -21,9 +37,26 @@ h2 {
     border-radius: 12px;
     margin: 1rem;
     color: white;
+    margin-bottom: 0rem;
 }
 
-.sideTitel {
+.formControlButton {
+    background-color:  rgb(56, 139, 184);
+    margin: 1rem;
+    margin-top: 4rem;
+    align-items: flex-end;
+}
+
+.divFormSplit {
+    border-radius: 12px;
+    border-color: #657074;
+    border-style: solid;
+    margin-left: 2rem;
+    margin-right: 2rem;
+    display: flex;;
+}
+
+.sideTitle {
     background-color: #ffffff;
     font-style: bold;
     font-family: var(--bs-font-sans-serif);
@@ -37,6 +70,7 @@ h2 {
 
 .split {
   display: flex;
+  margin-right: 2rem;
   height: 100vh;
 }
 
@@ -48,4 +82,24 @@ h2 {
 .divSide {
   flex: 1;
   background-color: #657074;
+}
+
+.divSpliter {
+  height: 85vh;
+}
+
+.divFormSubmitSplit {
+  display: flex;
+}
+
+.divFormCancel {
+  flex: 1;
+}
+
+.divFormSubmit {
+  flex: 1;
+}
+
+.divFormShow{
+  flex: 1;
 }
