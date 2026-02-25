@@ -47,15 +47,6 @@ h2 {
     align-items: flex-end;
 }
 
-.divFormSplit {
-    border-radius: 12px;
-    border-color: #657074;
-    border-style: solid;
-    margin-left: 2rem;
-    margin-right: 2rem;
-    display: flex;;
-}
-
 .sideTitle {
     background-color: #ffffff;
     font-style: bold;
@@ -86,20 +77,46 @@ h2 {
 
 .divSpliter {
   height: 85vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #494949;
+  border-radius: 12px;
+  margin-left: 2rem;
+  margin-right: 2rem;
+}
+
+.divFormSplit {
+  display: flex;
+  flex: 1;
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+.divFormPrjLeft {
+  flex: 1;
+}
+
+.divFormPrjRight {
+  flex: 1;
 }
 
 .divFormSubmitSplit {
   display: flex;
+  width: 100%;
+  gap: 10px;
+  padding: 20px;
 }
 
 .divFormCancel {
   flex: 1;
+  margin-left: 1rem;
 }
 
 .divFormSubmit {
   flex: 1;
+  margin-right: 2rem;
 }
 
-.divFormShow{
+.divFormShow {
   flex: 1;
 }

@@ -2,7 +2,12 @@
     interface Project {
         title: string;
         customerID: number | null;
-        owner: string;
+        projectID: number | null;
+        customerName: string;
+        dueDate: Date | null;
+        startDate: Date | null;
+        budget: number | null;
+        projectManager: string;
     }
     let currentProject: Project | null = null;
 
@@ -10,7 +15,12 @@
         currentProject = {
             title: "",
             customerID: null,
-            owner: "",
+            customerName: "",
+            budget: null,
+            dueDate: null,
+            startDate: null,
+            projectID: null,
+            projectManager: "",
         };
     }
 
@@ -76,52 +86,112 @@
         <div class="divMain">
             {#if currentProject}
                 <h2>Create your Project</h2>
-                <div class="divFormSplit divSpliter">
-                    <div class="divFormPrjLeft">
-                        <div>
-                            <p class="formPrj">Project Title</p>
-                            <input
-                                class="form-control formPrj"
-                                type="text"
-                                placeholder="DB Migration"
-                                aria-label="default input example"
-                                bind:value={currentProject.title}
-                            />
+                <div class="divSpliter">
+                    <div class="divFormSplit">
+                        <div class="divFormPrjLeft">
+                            <div>
+                                <p class="formPrj">Project Title</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="text"
+                                    placeholder="DB Migration"
+                                    aria-label="default input example"
+                                    bind:value={currentProject.title}
+                                />
+                            </div>
+                            <div>
+                                <p class="formPrj">Customer Name</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="text"
+                                    placeholder="ACME Corp."
+                                    aria-label="default input example"
+                                    bind:value={currentProject.customerName}
+                                />
+                            </div>
+                            <div>
+                                <p class="formPrj">Project Manager</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="text"
+                                    placeholder="John Doe"
+                                    aria-label="default input example"
+                                    bind:value={currentProject.projectManager}
+                                />
+                            </div>
+                            <div>
+                                <p class="formPrj">Project ID</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="text"
+                                    placeholder="12345"
+                                    aria-label="default input example"
+                                    bind:value={currentProject.projectID}
+                                />
+                            </div>
+                        </div>
+                        <div class="divFormPrjRight">
+                            <div>
+                                <p class="formPrj">CustomerID</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="text"
+                                    placeholder="99999"
+                                    aria-label="default input example"
+                                    bind:value={currentProject.customerID}
+                                />
+                            </div>
+                            <div>
+                                <p class="formPrj">Budget</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="text"
+                                    placeholder="1000000"
+                                    aria-label="default input example"
+                                    bind:value={currentProject.budget}
+                                />
+                            </div>
+                            <div>
+                                <p class="formPrj">Due Date</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="date"
+                                    aria-label="default input example"
+                                    bind:value={currentProject.dueDate}
+                                />
+                            </div>
+                            <div>
+                                <p class="formPrj">Start Date</p>
+                                <input
+                                    class="form-control formPrj"
+                                    type="date"
+                                    aria-label="default input example"
+                                    bind:value={currentProject.startDate}
+                                />
+                            </div>
                         </div>
                     </div>
-                    <div class="divFormPrjRight">
-                        <div>
-                            <p class="formPrj">CustomerID</p>
-                            <input
-                                class="form-control formPrj"
-                                type="text"
-                                placeholder="99999"
-                                aria-label="default input example"
-                                bind:value={currentProject.customerID}
-                            />
+                    <div class="divFormSubmitSplit">
+                        <div class="divFormCancel">
+                            <button
+                                class="btn btn-primary btn-lg formControlButton"
+                                type="button"
+                                on:click={cancelNewProject}>cancel</button
+                            >
                         </div>
-                        <div class="divFormSubmitSplit">
-                            <div class="divFormCancel">
-                                <button
-                                    class="btn btn-primary btn-lg formControlButton"
-                                    type="button"
-                                    on:click={cancelNewProject}>cancel</button
-                                >
-                            </div>
-                            <div class="divFormShow">
-                                <button
-                                    class="btn btn-primary btn-lg formControlButton"
-                                    type="button"
-                                    on:click={showCurrentProject}>show</button
-                                >
-                            </div>
-                            <div class="divFormSubmit">
-                                <button
-                                    class="btn btn-primary btn-lg formControlButton"
-                                    type="button"
-                                    on:click={submitNewProject}>submit</button
-                                >
-                            </div>
+                        <div class="divFormShow">
+                            <button
+                                class="btn btn-primary btn-lg formControlButton"
+                                type="button"
+                                on:click={showCurrentProject}>show</button
+                            >
+                        </div>
+                        <div class="divFormSubmit">
+                            <button
+                                class="btn btn-primary btn-lg formControlButton"
+                                type="button"
+                                on:click={submitNewProject}>submit</button
+                            >
                         </div>
                     </div>
                 </div>
