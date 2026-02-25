@@ -1,4 +1,5 @@
 <script lang="ts">
+    import onTrackCorpFav from "$lib/assets/onTrackCorpFav.png";
     interface Project {
         title: string;
         customerID: number | null;
@@ -49,7 +50,7 @@
 </script>
 
 <header>
-    <h1 class="sideTitle">onTrack</h1>
+    <h1 class="sideTitle"><img class="sideTitleIcon" src={onTrackCorpFav} alt="o" />nTrack</h1>
     <nav class="navbar navbar-expand-lg bg-body-tertiary">
         <div class="container-fluid">
             <button

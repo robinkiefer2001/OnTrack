@@ -59,6 +59,14 @@ h2 {
     border-style: none;    
 }
 
+.sideTitleIcon {
+  height: 1em;
+  width: auto;
+  margin: 0 0.2rem;
+  vertical-align: -0.08em;
+  display: inline-block;
+}
+
 .split {
   display: flex;
   margin-right: 2rem;
