@@ -1,6 +1,21 @@
-<script>
-    function newProjcet(){
-        
+<script lang="ts">
+    interface Project{
+    title: string
+    customer: string
+    owner: string
+}
+    let currentProject: Project | null = null;
+
+    function newProjcet() {
+        currentProject = {
+            title: "",
+            customer: "",
+            owner: ""
+        };
+    }
+
+    function showCurrentProject() {
+        console.log(currentProject);
     }
 </script>
 
@@ -37,14 +52,28 @@
     <div class="split">
         <div class="divSide">
             <div class="d-grid gap-2">
-                <button type="button" class = "sideButton"
+                <button type="button" class="sideButton" on:click={newProjcet}
                     >Create Project</button
                 >
-                <button class = "sideButton" type="button">none</button>
+                <button class="sideButton" type="button" on:click={showCurrentProject}>Test</button>
             </div>
         </div>
         <div class="divMain">
-
+            {#if currentProject}
+                <h2>Create youre Project</h2>
+                <li>
+                    <list element>
+                        <p>Project Titel</p>
+                        <input
+                            class="form-control"
+                            type="text"
+                            placeholder="DB Migration"
+                            aria-label="default input example"
+                            bind:value={currentProject.title}
+                        />
+                    </list>
+                </li>
+            {/if}
         </div>
     </div>
 </header>

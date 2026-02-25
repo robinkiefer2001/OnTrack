@@ -9,6 +9,10 @@ h1 {
     margin: 0;
 }
 
+h2 {
+  margin: 2rem;
+}
+
 .sideButton {
     background-color:  rgb(56, 139, 184);
     box-shadow: #45cafa;
