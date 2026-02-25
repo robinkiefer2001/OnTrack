@@ -22,7 +22,7 @@
                         >
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href=".\newproject">New Project</a>
+                        <a class="nav-link" href=".\projects">Projects</a>
                     </li>
                 </ul>
             </div>

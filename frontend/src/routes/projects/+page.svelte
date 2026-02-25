@@ -24,12 +24,20 @@
         };
     }
 
+    function printOutProjectState() {
+        console.log(currentProject);
+    }
+
     function showCurrentProject() {
         console.log(currentProject);
     }
 
     function cancelNewProject() {
         currentProject = null;
+    }
+
+    function modifyProject() {
+
     }
 
     function submitNewProject() {
@@ -60,7 +68,7 @@
                         <a
                             class="nav-link active"
                             aria-current="page"
-                            aria-disabled="true">New Project</a
+                            aria-disabled="true">Projects</a
                         >
                     </li>
                     <li class="nav-item">
@@ -79,8 +87,12 @@
                 <button
                     class="sideButton"
                     type="button"
-                    on:click={showCurrentProject}>Test</button
+                    on:click={modifyProject}>Modify Project</button
                 >
+                <button
+                    class="sideButton"
+                    type="button"
+                    on:click={printOutProjectState}>Print Project State</button>
             </div>
         </div>
         <div class="divMain">
@@ -100,14 +112,7 @@
                                 />
                             </div>
                             <div>
-                                <p class="formPrj">Customer Name</p>
-                                <input
-                                    class="form-control formPrj"
-                                    type="text"
-                                    placeholder="ACME Corp."
-                                    aria-label="default input example"
-                                    bind:value={currentProject.customerName}
-                                />
+                                <button class="btn btn-secondary formPrj" type="button">Select Customer</button>
                             </div>
                             <div>
                                 <p class="formPrj">Project Manager</p>
