@@ -5,8 +5,8 @@
 
 	let { children } = $props();
 
-	onMount(async () => {
-		await import('bootstrap/dist/js/bootstrap.bundle.min.js');
+	onMount(() => {
+		void import('bootstrap');
 	});
 </script>
 
