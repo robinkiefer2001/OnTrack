@@ -8,6 +8,18 @@ export interface Project {
     budget: number | null;
     projectManager: string;
     projectstatus: ProjectStatus;
+    Tasks: Task[];
+}
+
+export interface Task {
+    taskID: number;
+    projectID: number;
+    title: string;
+    description: string;
+    status: "To Do" | "In Progress" | "Done";
+    assignedTo: string;
+    dueDate: Date | null;
+    notificationSent: boolean;
 }
 
 export type ProjectStatus =
@@ -26,7 +38,6 @@ export type ProjectStatus =
     email: string;
     phone: string;
     zip: number;
-    
   }
 
   export interface customerEmployee {

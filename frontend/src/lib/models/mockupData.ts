@@ -1,4 +1,5 @@
 import type { customer, customerEmployee, Project, ProjectStatus } from "./project";
+import { writable } from "svelte/store";
 
 const firstNames = [
     "Liam",
@@ -90,6 +91,12 @@ const statuses: ProjectStatus[] = [
     "Cancelled",
 ];
 
+const taskStatuses: ("To Do" | "In Progress" | "Done")[] = [
+    "To Do",
+    "In Progress",
+    "Done",
+];
+
 
 function randomFrom<T>(list: T[]): T {
     return list[Math.floor(Math.random() * list.length)];
@@ -143,7 +150,7 @@ export const customerEmployeeList: customerEmployee[] = customerList.flatMap((cu
     }),
 );
 
-export const projectList: Project[] = Array.from({ length: 20 }, (_, index) => {
+const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
     const projectCustomer = randomFrom(customerList);
     const managers = customerEmployeeList.filter(
         (employee) => employee.customerID === projectCustomer.customerID,
@@ -163,9 +170,25 @@ export const projectList: Project[] = Array.from({ length: 20 }, (_, index) => {
         projectID: 50000 + index,
         projectManager: `${manager.firstName} ${manager.lastName}`,
         projectstatus: randomFrom(statuses),
+        Tasks: Array.from({ length: randomInt(3, 10) }, (_, taskIndex) => {
+            const taskDueDate = new Date(startDate);
+            taskDueDate.setDate(taskDueDate.getDate() + randomInt(7, 180));
+            return {
+                taskID: 1000 + taskIndex,
+                title: `Task ${taskIndex + 1}`,
+                dueDate: taskDueDate,
+                status: randomFrom(taskStatuses),
+                projectID: 50000 + index,
+                description: `Description for task ${taskIndex + 1}`,
+                assignedTo: `${manager.firstName} ${manager.lastName}`,
+                notificationSent: false,
+            };
+        }),
     };
 });
 
+export const projectList = writable<Project[]>(initialProjectList);
+
 export function addToListProject(project: Project) {
-    projectList.push(project);
+    projectList.update((projects) => [...projects, project]);
 }
