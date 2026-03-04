@@ -90,6 +90,7 @@ const statuses: ProjectStatus[] = [
     "Cancelled",
 ];
 
+
 function randomFrom<T>(list: T[]): T {
     return list[Math.floor(Math.random() * list.length)];
 }
@@ -164,3 +165,7 @@ export const projectList: Project[] = Array.from({ length: 20 }, (_, index) => {
         projectstatus: randomFrom(statuses),
     };
 });
+
+export function addToListProject(project: Project) {
+    projectList.push(project);
+}

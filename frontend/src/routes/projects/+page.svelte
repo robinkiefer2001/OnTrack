@@ -1,15 +1,28 @@
 <script lang="ts">
-    import type { Project, ProjectStatus } from "$lib/models/project";
-    import { projectList } from "$lib/models/mockupData";
+    import type {
+        Project,
+        ProjectStatus,
+        customer,
+        customerEmployee,
+    } from "$lib/models/project";
+    import {
+        addToListProject,
+        customerList,
+        projectList,
+    } from "$lib/models/mockupData";
 
     // State Variables
-    let currentProject: Project | null = null;
+    let initProject: Project | null = null;
+    let selectedProject: Project | null = null;
+    let selectedCustomer: customer | null = null;
+    let showCustomerSelect: boolean = false;
     let selectedRow: number | null = null;
-
+    let showForm: boolean = false;
 
     // Event Handlers
     function newProject() {
-        currentProject = {
+        showForm = true;
+        initProject = {
             title: "",
             customerID: null,
             customerName: "",
@@ -22,6 +35,11 @@
         };
     }
 
+    function selectCustomer() {
+        showCustomerSelect = true;
+        return selectedCustomer;
+    }
+
     function toggleSelect(id: number) {
         selectedRow = selectedRow === id ? null : id;
     }
@@ -31,26 +49,28 @@
     }
 
     function cancelNewProject() {
-        currentProject = null;
+        initProject = null;
+        showForm = false;
     }
 
     function modifyProject() {}
 
     function submitNewProject() {
-        // Here you would typically send the currentProject data to your backend API
-
+        // Here you would typically send the initProject data to your backend API
+        if (initProject !== null) {
+            addToListProject(initProject);
+        }
+        showForm = false;
         // After submission, you might want to reset the form or navigate away
-        currentProject = null;
+        initProject = null;
     }
 
     // Debug Functions
     function printOutProjectState() {
-        console.log(currentProject);
+        console.log(initProject);
     }
 
-    function showCurrentProject() {
-        console.log(currentProject);
-    }
+    function showCurrentProject() {}
 </script>
 
 <ul class="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-box">
@@ -61,7 +81,7 @@
             >
         </a>
     </li>
-    {#if currentProject == null}
+    {#if selectedProject == null}
         <li>
             <a>
                 <button
@@ -110,28 +130,30 @@
             </a>
         </li>
     {/if}
+    <a>
+        <label class="input">
+            <svg
+                class="h-[1em] opacity-50"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+            >
+                <g
+                    stroke-linejoin="round"
+                    stroke-linecap="round"
+                    stroke-width="2.5"
+                    fill="none"
+                    stroke="currentColor"
+                >
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.3-4.3"></path>
+                </g>
+            </svg>
+            <input type="search" required placeholder="Search" />
+        </label>
+    </a>
 </ul>
 
-<div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2">
-    <label class="input">
-        <svg
-            class="h-[1em] opacity-50"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-        >
-            <g
-                stroke-linejoin="round"
-                stroke-linecap="round"
-                stroke-width="2.5"
-                fill="none"
-                stroke="currentColor"
-            >
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.3-4.3"></path>
-            </g>
-        </svg>
-        <input type="search" required placeholder="Search" />
-    </label>
+<div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2 h-200">
     <table class="table">
         <thead>
             <tr>
@@ -148,133 +170,173 @@
                 <tr
                     class="cursor-pointer hover:bg-gray-100 transition-colors"
                     on:click={() => {
-                        toggleSelect(p.projectID);
-                        currentProject = {
+                        toggleSelect(p.projectID!);
+                        selectedProject = {
                             title: p.title,
+                            customerID: p.customerID,
                             customerName: p.customerName,
                             budget: p.budget,
                             dueDate: p.dueDate,
                             startDate: p.startDate,
                             projectID: p.projectID,
                             projectManager: p.projectManager,
-                            projectstatus: p.status as ProjectStatus,
+                            projectstatus: p.projectstatus as ProjectStatus,
                         };
                     }}
                 >
                     <td>{p.projectID}</td>
                     <td>{p.customerName}</td>
                     <td>{p.projectManager}</td>
-                    <td>${p.budget}</td>
-                    <td>{p.status as ProjectStatus}</td>
-                    <td>{p.dueDate}</td>
-                    <td>{p.startDate}</td>
+                    <td>CHF. {p.budget}</td>
+                    <td>{p.projectstatus as ProjectStatus}</td>
+                    <td>
+                        {p.dueDate
+                            ? p.dueDate.toLocaleDateString("de-CH", {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                              })
+                            : "-"}
+                    </td>
                 </tr>
             {/each}
         </tbody>
     </table>
 </div>
-{#if currentProject}
-    <h2>Create your Project</h2>
-    <div class="divSpliter">
-        <div class="divFormSplit">
-            <div class="divFormPrjLeft">
-                <div>
-                    <p class="formPrj">Project Title</p>
-                    <input
-                        class="form-control formPrj"
-                        type="text"
-                        placeholder="DB Migration"
-                        aria-label="default input example"
-                        bind:value={currentProject.title}
-                    />
+
+{#if showForm}
+    <div
+        class="fixed inset-0 bg-black/40 flex items-center justify-center w-full h-full"
+    >
+        <div class="bg-white p-6 rounded-lg shadow-xl h-full w-full">
+            <!-- name of each tab group should be unique -->
+            <div class="tabs tabs-lift content-center">
+                <input
+                    type="radio"
+                    name="my_tabs_3"
+                    class="tab"
+                    aria-label="Project Details"
+                    checked="checked"
+                />
+
+                <div class="tab-content bg-base-100 border-base-300 p-6">
+                    <div class="grid grid-cols-3 gap-6 mb-4">
+                        <div class="flex-1">
+                            <p class="text-2xl font-bold mb-4">Project Name</p>
+                            <input
+                                type="text"
+                                placeholder="Type here"
+                                class="input"
+                                bind:value={initProject!.title}
+                            />
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-2xl font-bold mb-4">Customer</p>
+                            <input
+                                type="text"
+                                placeholder="Type here"
+                                class="input"
+                                bind:value={initProject!.customerName}
+                                readonly
+                            />
+                            <button
+                                class="btn btn-neutral"
+                                on:click={selectCustomer}
+                            >
+                                Select Customer
+                            </button>
+                            {#if showCustomerSelect}
+                                <div
+                                    class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+                                >
+                                    <div
+                                        class="bg-white p-4 rounded-lg shadow-xl w-80"
+                                    > 
+                                    <input type="text" placeholder="Search Customer" class="input w-full mb-4" />
+                                        <ul class="menu bg-base-100 w-full">
+                                            {#each customerList as c}
+                                                <li
+                                                    on:click={() => {
+                                                        initProject!.customerID =
+                                                            c.customerID;
+                                                        initProject!.customerName =
+                                                            c.companyName;
+                                                        showCustomerSelect = false;
+                                                    }}
+                                                >
+                                                    <a>{c.companyName}</a>
+                                                </li>
+                                            {/each}
+                                        </ul>
+                                                                                                                                              <button
+                                        class="btn btn-neutral absolute top-4 right-4"
+                                        on:click={() => {
+                                            showCustomerSelect = false;
+                                        }}>
+                                        Close</button>
+  
+                                    </div>
+        
+                                </div>
+                                
+                            {/if}
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-2xl font-bold mb-4">
+                                Project Manager
+                            </p>
+                            <input
+                                type="text"
+                                placeholder="Type here"
+                                class="input"
+                                bind:value={initProject!.projectManager}
+                            />
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-2xl font-bold mb-4">Budget</p>
+                            <input
+                                type="text"
+                                placeholder="Type here"
+                                class="input"
+                                bind:value={initProject!.budget}
+                            />
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-2xl font-bold mb-4">Start Date</p>
+                            <input
+                                type="date"
+                                placeholder="Type here"
+                                class="input"
+                                bind:value={initProject!.startDate}
+                            />
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-2xl font-bold mb-4">Due Date</p>
+                            <input
+                                type="date"
+                                placeholder="Type here"
+                                class="input"
+                                bind:value={initProject!.dueDate}
+                            />
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <button class="btn btn-secondary formPrj" type="button"
-                        >Select Customer</button
-                    >
-                </div>
-                <div>
-                    <p class="formPrj">Project Manager</p>
-                    <input
-                        class="form-control formPrj"
-                        type="text"
-                        placeholder="John Doe"
-                        aria-label="default input example"
-                        bind:value={currentProject.projectManager}
-                    />
-                </div>
-                <div>
-                    <p class="formPrj">Project ID</p>
-                    <input
-                        class="form-control formPrj"
-                        type="text"
-                        placeholder="12345"
-                        aria-label="default input example"
-                        bind:value={currentProject.projectID}
-                    />
+
+                <input
+                    type="radio"
+                    name="my_tabs_3"
+                    class="tab"
+                    aria-label="Notifications"
+                />
+                <div class="tab-content bg-base-100 border-base-300 p-6">
+                    Tab content 3
                 </div>
             </div>
-            <div class="divFormPrjRight">
-                <div>
-                    <p class="formPrj">CustomerID</p>
-                    <input
-                        class="form-control formPrj"
-                        type="text"
-                        placeholder="99999"
-                        aria-label="default input example"
-                        bind:value={currentProject.customerID}
-                    />
-                </div>
-                <div>
-                    <p class="formPrj">Budget</p>
-                    <input
-                        class="form-control formPrj"
-                        type="text"
-                        placeholder="1000000"
-                        aria-label="default input example"
-                        bind:value={currentProject.budget}
-                    />
-                </div>
-                <div>
-                    <p class="formPrj">Due Date</p>
-                    <input
-                        class="form-control formPrj"
-                        type="date"
-                        aria-label="default input example"
-                        bind:value={currentProject.dueDate}
-                    />
-                </div>
-                <div>
-                    <p class="formPrj">Start Date</p>
-                    <input
-                        class="form-control formPrj"
-                        type="date"
-                        aria-label="default input example"
-                        bind:value={currentProject.startDate}
-                    />
-                </div>
-            </div>
-        </div>
-        <div class="divFormSubmitSplit">
-            <div class="divFormCancel">
-                <button
-                    class="btn btn-primary btn-lg formControlButton"
-                    type="button"
-                    on:click={cancelNewProject}>cancel</button
-                >
-            </div>
-            <div class="divFormShow">
-                <button
-                    class="btn btn-primary btn-lg formControlButton"
-                    type="button"
-                    on:click={showCurrentProject}>show</button
-                >
-            </div>
-            <div class="divFormSubmit">
-                <button
-                    class="btn btn-primary btn-lg formControlButton"
-                    type="button"
-                    on:click={submitNewProject}>submit</button
+            <div class="flex gap-4 mt-4">
+                <button class="btn" on:click={submitNewProject}>Submit</button>
+                <button class="btn btn-neutral" on:click={cancelNewProject}
+                    >Cancel</button
                 >
             </div>
         </div>
