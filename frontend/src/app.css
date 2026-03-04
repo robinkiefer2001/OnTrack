@@ -25,7 +25,9 @@
 }
 
 .navdesigne {
-  background-color: #01294b;
+  background-color: #1b1a1a;
+  border-width: 0;
+  border-radius: 0px;
 }
 
 .navButtons {
@@ -42,7 +44,7 @@
 }
 
 .divSideBar {
-  background-color: #01294b;
+  /*background-color: #01294b;*/
   display: flex;
   flex: 1;
   width: 15rem;
@@ -51,4 +53,11 @@
 .divMain{
   flex: 6;
   background-color: white;
+  margin-left: 2rem;
+  margin-top: 2rem;
+}
+
+.ulSideBar {
+  /*background-color: rgba(117, 127, 127, 0.662);*/
+  border-radius: 0%;
 }

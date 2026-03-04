@@ -1,14 +1,5 @@
 <script lang="ts">
-        interface Project {
-        title: string;
-        customerID: number | null;
-        projectID: number | null;
-        customerName: string;
-        dueDate: Date | null;
-        startDate: Date | null;
-        budget: number | null;
-        projectManager: string;
-    }
+    import type { Project } from "$lib/models/project";
     let currentProject: Project | null = null;
 
     function newProject() {
@@ -46,26 +37,70 @@
     }
 </script>
 
-<div class="split">
-    <div class="divMain">
-        <div class="d-grid gap-2">
-            <button type="button" class="sideButton" on:click={newProject}>
-                Create Project
-            </button>
-            <button type="button" class="sideButton" on:click={modifyProject}>
-                Modify Project
-            </button>
-            <button
-                type="button"
-                class="sideButton"
-                on:click={printOutProjectState}
-            >
-                Print Project State
-            </button>
-        </div>
+
+<div class="flex-1">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start flex-1">
+
+    <!-- LEFT: Stat (ohne zusätzliche Box!) -->
+    <div class="stats shadow rounded-box p-4 bg-base-100">
+      <div class="stat">
+        <div class="stat-title">Current Projects</div>
+        <div class="stat-value">20</div>
+        <div class="stat-desc">none</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Table -->
+    <div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2">
+      <table class="table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Job</th>
+            <th>Favorite Color</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>1</th>
+            <td>Cy Ganderton</td>
+            <td>Quality Control Specialist</td>
+            <td>Blue</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+
+
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white-200 p-4">
+        <button class="btn btn-primary" on:click={newProject}
+            >New Project</button
+        >
+    </div>
+    <div class="bg-white-200 p-4">
+        <button class="btn btn-secondary" on:click={printOutProjectState}
+            >Print Project State</button
+        >
+    </div>
+    <div class="bg-white-200 p-4">
+        <button class="btn btn-secondary" on:click={modifyProject}
+            >Modify Project</button
+        >
+    </div>
+    <div class="bg-white-200 p-4">
+        <button class="btn btn-secondary" on:click={showCurrentProject}
+            >Show Current Project</button
+        >
     </div>
 </div>
-/* This section will only be rendered if currentProject is not null
+
 {#if currentProject}
     <h2>Create your Project</h2>
     <div class="divSpliter">
@@ -173,4 +208,3 @@
         </div>
     </div>
 {/if}
-*/
