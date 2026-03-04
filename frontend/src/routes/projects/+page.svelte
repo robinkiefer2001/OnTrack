@@ -1,7 +1,13 @@
 <script lang="ts">
-    import type { Project } from "$lib/models/project";
-    let currentProject: Project | null = null;
+    import type { Project, ProjectStatus } from "$lib/models/project";
+    import { projectList } from "$lib/models/mockupData";
 
+    // State Variables
+    let currentProject: Project | null = null;
+    let selectedRow: number | null = null;
+
+
+    // Event Handlers
     function newProject() {
         currentProject = {
             title: "",
@@ -12,15 +18,16 @@
             startDate: null,
             projectID: null,
             projectManager: "",
+            projectstatus: "Initiation" as ProjectStatus,
         };
     }
 
-    function printOutProjectState() {
-        console.log(currentProject);
+    function toggleSelect(id: number) {
+        selectedRow = selectedRow === id ? null : id;
     }
 
-    function showCurrentProject() {
-        console.log(currentProject);
+    function checkOn() {
+        console.log("checkbox clicked");
     }
 
     function cancelNewProject() {
@@ -31,76 +38,141 @@
 
     function submitNewProject() {
         // Here you would typically send the currentProject data to your backend API
-        console.log("Submitting project:", currentProject);
+
         // After submission, you might want to reset the form or navigate away
         currentProject = null;
     }
+
+    // Debug Functions
+    function printOutProjectState() {
+        console.log(currentProject);
+    }
+
+    function showCurrentProject() {
+        console.log(currentProject);
+    }
 </script>
 
+<ul class="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-box">
+    <li>
+        <a>
+            <button class="btn btn-neutral" on:click={newProject}
+                >New Project</button
+            >
+        </a>
+    </li>
+    {#if currentProject == null}
+        <li>
+            <a>
+                <button
+                    class="btn btn-neutral"
+                    disabled
+                    on:click={printOutProjectState}>Print Project State</button
+                >
+            </a>
+        </li>
+        <li>
+            <a>
+                <button
+                    class="btn btn-neutral"
+                    disabled
+                    on:click={modifyProject}>Modify Project</button
+                >
+            </a>
+        </li>
+        <li>
+            <a>
+                <button class="btn" disabled on:click={showCurrentProject}
+                    >Show Current Project</button
+                >
+            </a>
+        </li>
+    {:else}
+        <li>
+            <a>
+                <button class="btn" on:click={printOutProjectState}
+                    >Print Project State</button
+                >
+            </a>
+        </li>
+        <li>
+            <a>
+                <button class="btn" on:click={modifyProject}
+                    >Modify Project</button
+                >
+            </a>
+        </li>
+        <li>
+            <a>
+                <button class="btn" on:click={showCurrentProject}
+                    >Show Current Project</button
+                >
+            </a>
+        </li>
+    {/if}
+</ul>
 
-<div class="flex-1">
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start flex-1">
-
-    <!-- LEFT: Stat (ohne zusätzliche Box!) -->
-    <div class="stats shadow rounded-box p-4 bg-base-100">
-      <div class="stat">
-        <div class="stat-title">Current Projects</div>
-        <div class="stat-value">20</div>
-        <div class="stat-desc">none</div>
-      </div>
-    </div>
-
-    <!-- RIGHT: Table -->
-    <div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2">
-      <table class="table">
+<div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2">
+    <label class="input">
+        <svg
+            class="h-[1em] opacity-50"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+        >
+            <g
+                stroke-linejoin="round"
+                stroke-linecap="round"
+                stroke-width="2.5"
+                fill="none"
+                stroke="currentColor"
+            >
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </g>
+        </svg>
+        <input type="search" required placeholder="Search" />
+    </label>
+    <table class="table">
         <thead>
-          <tr>
-            <th></th>
-            <th>Name</th>
-            <th>Job</th>
-            <th>Favorite Color</th>
-          </tr>
+            <tr>
+                <th>Project Nr.</th>
+                <th>Customer</th>
+                <th>Project Manager</th>
+                <th>Budget</th>
+                <th>Status</th>
+                <th>Due Date</th>
+            </tr>
         </thead>
-        <tbody>
-          <tr>
-            <th>1</th>
-            <td>Cy Ganderton</td>
-            <td>Quality Control Specialist</td>
-            <td>Blue</td>
-          </tr>
+        <tbody class="">
+            {#each projectList as p}
+                <tr
+                    class="cursor-pointer hover:bg-gray-100 transition-colors"
+                    on:click={() => {
+                        toggleSelect(p.projectID);
+                        currentProject = {
+                            title: p.title,
+                            customerName: p.customerName,
+                            budget: p.budget,
+                            dueDate: p.dueDate,
+                            startDate: p.startDate,
+                            projectID: p.projectID,
+                            projectManager: p.projectManager,
+                            projectstatus: p.status as ProjectStatus,
+                        };
+                    }}
+                >
+                    <td>{p.projectID}</td>
+                    <td>{p.customerName}</td>
+                    <td>{p.projectManager}</td>
+                    <td>${p.budget}</td>
+                    <td>{p.status as ProjectStatus}</td>
+                    <td>{p.dueDate}</td>
+                    <td>{p.startDate}</td>
+                </tr>
+            {/each}
         </tbody>
-      </table>
-    </div>
-
-  </div>
+    </table>
 </div>
-
-
-
-
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="bg-white-200 p-4">
-        <button class="btn btn-primary" on:click={newProject}
-            >New Project</button
-        >
-    </div>
-    <div class="bg-white-200 p-4">
-        <button class="btn btn-secondary" on:click={printOutProjectState}
-            >Print Project State</button
-        >
-    </div>
-    <div class="bg-white-200 p-4">
-        <button class="btn btn-secondary" on:click={modifyProject}
-            >Modify Project</button
-        >
-    </div>
-    <div class="bg-white-200 p-4">
-        <button class="btn btn-secondary" on:click={showCurrentProject}
-            >Show Current Project</button
-        >
-    </div>
-</div>
-
 {#if currentProject}
     <h2>Create your Project</h2>
     <div class="divSpliter">
