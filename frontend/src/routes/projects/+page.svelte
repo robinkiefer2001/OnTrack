@@ -34,70 +34,95 @@
     startDate: null as Date | string | null,
   };
 
-function newProject() {
-  showForm = true;
+  // Selected tasks for bulk actions
+  let selectedTasks = new Set<number>();
+  $: taskPhaseRange = getPhaseRange(
+    (newTask.projectPhase || "") as ProjectPhase["phaseName"] | "",
+  );
 
-  const projectId = Date.now(); // temporäre ID
+  function setTaskPhase(name: ProjectPhase["phaseName"]) {
+    if (!initProject) return;
 
-  initProject = {
-    title: "",
-    customerID: null,
-    customerName: "",
-    budget: null,
-    dueDate: null,
-    startDate: null,
-    projectID: projectId,
-    projectManager: "",
-    projectstatus: "Initiation" as ProjectStatus,
-    initiationPhase: [
-      {
-        phaseid: projectId + 0,
-        projectID: projectId,
-        phaseName: "Initiation",
-        startDate: null,
-        dueDate: null,
-      },
-    ] as ProjectPhase[],
-    planingPhase: [
-      {
-        phaseid: projectId + 1,
-        projectID: projectId,
-        phaseName: "Planing",
-        startDate: null,
-        dueDate: null,
-      },
-    ] as ProjectPhase[],
-    executionPhase: [
-      {
-        phaseid: projectId + 2,
-        projectID: projectId,
-        phaseName: "Execution",
-        startDate: null,
-        dueDate: null,
-      },
-    ] as ProjectPhase[],
-    closurePhase: [
-      {
-        phaseid: projectId + 3,
-        projectID: projectId,
-        phaseName: "Closure",
-        startDate: null,
-        dueDate: null,
-      },
-    ] as ProjectPhase[],
-    monitoringPhase: [
-      {
-        phaseid: projectId + 4,
-        projectID: projectId,
-        phaseName: "Monitoring",
-        startDate: null,
-        dueDate: null,
-      },
-    ] as ProjectPhase[],
-    Tasks: [],
-  };
-}
+    newTask.projectPhase = name;
+    // passende PhaseId aus deinen Arrays holen:
+    const map: Record<ProjectPhase["phaseName"], number | null> = {
+      Initiation: initProject.initiationPhase[0]?.phaseid ?? null,
+      Planing: initProject.planingPhase[0]?.phaseid ?? null,
+      Execution: initProject.executionPhase[0]?.phaseid ?? null,
+      Monitoring: initProject.monitoringPhase[0]?.phaseid ?? null,
+      Closure: initProject.closurePhase[0]?.phaseid ?? null,
+    };
 
+    newTask.phaseid = map[name];
+
+    const { start, end } = getPhaseRange(name);
+    newTask.startDate = start;
+    newTask.dueDate = end;
+  }
+
+  function newProject() {
+    showForm = true;
+
+    const projectId = Date.now(); // temporäre ID
+
+    initProject = {
+      title: "",
+      customerID: null,
+      customerName: "",
+      budget: null,
+      dueDate: null,
+      startDate: null,
+      projectID: projectId,
+      projectManager: "",
+      projectstatus: "Initiation" as ProjectStatus,
+      initiationPhase: [
+        {
+          phaseid: projectId + 0,
+          projectID: projectId,
+          phaseName: "Initiation",
+          startDate: null,
+          dueDate: null,
+        },
+      ] as ProjectPhase[],
+      planingPhase: [
+        {
+          phaseid: projectId + 1,
+          projectID: projectId,
+          phaseName: "Planing",
+          startDate: null,
+          dueDate: null,
+        },
+      ] as ProjectPhase[],
+      executionPhase: [
+        {
+          phaseid: projectId + 2,
+          projectID: projectId,
+          phaseName: "Execution",
+          startDate: null,
+          dueDate: null,
+        },
+      ] as ProjectPhase[],
+      closurePhase: [
+        {
+          phaseid: projectId + 3,
+          projectID: projectId,
+          phaseName: "Closure",
+          startDate: null,
+          dueDate: null,
+        },
+      ] as ProjectPhase[],
+      monitoringPhase: [
+        {
+          phaseid: projectId + 4,
+          projectID: projectId,
+          phaseName: "Monitoring",
+          startDate: null,
+          dueDate: null,
+        },
+      ] as ProjectPhase[],
+      Tasks: [],
+    };
+  }
 
   function selectCustomer() {
     showCustomerSelect = true;
@@ -122,8 +147,45 @@ function newProject() {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
+  function toInputDate(value: Date | string | null): string | null {
+    const date = toDateOrNull(value);
+    return date ? date.toISOString().split("T")[0] : null;
+  }
+
+  function getPhaseRange(phaseName: ProjectPhase["phaseName"] | "") {
+    if (!initProject || !phaseName) return { start: null, end: null };
+
+    const phaseMap: Record<ProjectPhase["phaseName"], ProjectPhase[] | undefined> = {
+      Initiation: initProject.initiationPhase,
+      Planing: initProject.planingPhase,
+      Execution: initProject.executionPhase,
+      Monitoring: initProject.monitoringPhase,
+      Closure: initProject.closurePhase,
+    };
+
+    const phase = phaseMap[phaseName]?.[0];
+    const start = toInputDate(phase?.startDate ?? null);
+    const end = toInputDate(phase?.dueDate ?? null);
+    return { start, end };
+  }
+
   function addTask() {
     if (!initProject || !newTask.title.trim()) return;
+
+    const taskStart = toDateOrNull(newTask.startDate);
+    const taskEnd = toDateOrNull(newTask.dueDate);
+
+    if (!newTask.projectPhase || !taskStart || !taskEnd) return;
+
+    const { start: phaseStartRaw, end: phaseEndRaw } = getPhaseRange(
+      newTask.projectPhase as ProjectPhase["phaseName"],
+    );
+    const phaseStart = toDateOrNull(phaseStartRaw);
+    const phaseEnd = toDateOrNull(phaseEndRaw);
+
+    if (phaseStart && taskStart < phaseStart) return;
+    if (phaseEnd && taskEnd > phaseEnd) return;
+    if (taskStart > taskEnd) return;
 
     const task: Task = {
       taskID: Date.now(),
@@ -132,10 +194,10 @@ function newProject() {
       phaseId: newTask.phaseid,
       projectPhase: newTask.projectPhase,
       description: newTask.description,
-      status: newTask.status as "Pending" | "To Do" | "In Progress" | "Done",
+      status: newTask.status as "Pending",
       assignedTo: newTask.assignedTo,
-      dueDate: toDateOrNull(newTask.dueDate),
-      startDate: toDateOrNull(newTask.startDate),
+      dueDate: taskEnd,
+      startDate: taskStart,
       notificationSent: false,
     };
 
@@ -144,7 +206,7 @@ function newProject() {
     newTask = {
       title: "",
       description: "",
-      status: "To Do",
+      status: "Pending",
       assignedTo: "",
       dueDate: null,
       startDate: null,
@@ -192,6 +254,60 @@ function newProject() {
   }
 
   function showCurrentProject() {}
+
+  function editTask(taskID: number) {
+    if (!initProject) return;
+
+    const task = initProject.Tasks.find((t) => t.taskID === taskID);
+    if (!task) return;
+
+    // Load task data into form
+    newTask = {
+      title: task.title,
+      description: task.description || "",
+      status: task.status,
+      assignedTo: task.assignedTo || "",
+      phaseid: task.phaseId,
+      projectPhase: task.projectPhase || "",
+      dueDate: task.dueDate ? task.dueDate.toISOString().split("T")[0] : null,
+      startDate: task.startDate
+        ? task.startDate.toISOString().split("T")[0]
+        : null,
+    };
+
+    // Remove the task from the list (it will be re-added when user clicks "Add Task")
+    removeTask(taskID);
+  }
+
+  function toggleTaskSelection(taskID: number) {
+    if (selectedTasks.has(taskID)) {
+      selectedTasks.delete(taskID);
+    } else {
+      selectedTasks.add(taskID);
+    }
+    selectedTasks = selectedTasks; // Trigger reactivity
+  }
+
+  function toggleSelectAll() {
+    if (!initProject) return;
+
+    if (selectedTasks.size === initProject.Tasks.length) {
+      selectedTasks.clear();
+    } else {
+      selectedTasks = new Set(initProject.Tasks.map((t) => t.taskID));
+    }
+    selectedTasks = selectedTasks; // Trigger reactivity
+  }
+
+  function deleteSelectedTasks() {
+    if (!initProject || selectedTasks.size === 0) return;
+
+    initProject.Tasks = initProject.Tasks.filter(
+      (t) => !selectedTasks.has(t.taskID),
+    );
+    selectedTasks.clear();
+    selectedTasks = selectedTasks; // Trigger reactivity
+  }
 </script>
 
 <!-- Top-Menü -->
@@ -418,7 +534,12 @@ function newProject() {
             </div>
           </div>
         </div>
-        <input type="radio" name="my_tabs_1" class="tab" aria-label="Project Phases" />
+        <input
+          type="radio"
+          name="my_tabs_1"
+          class="tab"
+          aria-label="Project Phases"
+        />
         <div class="tab-content bg-base-100 border-base-300 px-6 py-4">
           <!-- Task-Form -->
           <div class="grid grid-cols-2 gap-4 mb-4">
@@ -509,11 +630,14 @@ function newProject() {
             </label>
           </div>
         </div>
-      
 
         <!-- Tab 2: Tasks + Timeline -->
-        <input type="radio" name="my_tabs_1" class="tab" aria-label="Tasks"
-        checked
+        <input
+          type="radio"
+          name="my_tabs_1"
+          class="tab"
+          aria-label="Tasks"
+          checked
         />
         <div class="tab-content bg-base-100 border-base-300 px-6 py-4">
           <!-- Task-Form -->
@@ -552,6 +676,55 @@ function newProject() {
                 disabled
               />
             </div>
+
+            <div class="form-control w-full">
+              <span class="text-xl font-bold mb-2">Phase</span>
+              <div class="dropdown">
+                <button type="button" class="btn m-1" aria-haspopup="menu">
+                  Phase: {newTask.projectPhase || "Select Phase"}
+                </button>
+                <ul
+                  class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52"
+                >
+                  <li>
+                    <button
+                      type="button"
+                      on:click={() => setTaskPhase("Initiation")}
+                    >Initiation</button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      on:click={() => setTaskPhase("Planing")}
+                    >Planning</button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      on:click={() => setTaskPhase("Execution")}
+                    >Execution</button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      on:click={() => setTaskPhase("Monitoring")}
+                    >Monitoring</button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      on:click={() => setTaskPhase("Closure")}
+                    >Closure</button>
+                  </li>
+                </ul>
+              </div>
+              {#if newTask.projectPhase}
+                <p class="text-sm mt-2 text-gray-600">
+                  Selected: <span class="font-semibold">{newTask.projectPhase}</span>
+                </p>
+              {/if}
+            </div>
+
             <label class="form-control w-full">
               <div class="label">
                 <h3 class="text-xl font-bold mb-4">Start Date</h3>
@@ -560,6 +733,9 @@ function newProject() {
                 type="date"
                 class="input"
                 bind:value={newTask.startDate}
+                min={taskPhaseRange.start || undefined}
+                max={taskPhaseRange.end || undefined}
+                disabled={!newTask.projectPhase}
               />
             </label>
 
@@ -567,7 +743,14 @@ function newProject() {
               <div class="label">
                 <h3 class="text-xl font-bold mb-4">Due Date</h3>
               </div>
-              <input type="date" class="input" bind:value={newTask.dueDate} />
+              <input
+                type="date"
+                class="input"
+                bind:value={newTask.dueDate}
+                min={taskPhaseRange.start || undefined}
+                max={taskPhaseRange.end || undefined}
+                disabled={!newTask.projectPhase}
+              />
             </label>
 
             <label class="form-control w-full">
@@ -587,7 +770,7 @@ function newProject() {
             type="button"
             class="btn btn-primary mb-6"
             on:click={addTask}
-            disabled={!newTask.title.trim()}
+            disabled={!newTask.title.trim() || !newTask.projectPhase}
           >
             Add Task
           </button>
@@ -602,10 +785,20 @@ function newProject() {
               <table class="table w-full">
                 <thead>
                   <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        class="checkbox"
+                        checked={initProject.Tasks.length > 0 &&
+                          selectedTasks.size === initProject.Tasks.length}
+                        on:change={toggleSelectAll}
+                      />
+                    </th>
                     <th>Task</th>
                     <th>Description</th>
                     <th>Assigned To</th>
                     <th>Status</th>
+                    <th>Phase</th>
                     <th>Due Date</th>
                     <th>Action</th>
                   </tr>
@@ -613,6 +806,14 @@ function newProject() {
                 <tbody>
                   {#each initProject.Tasks as task}
                     <tr>
+                      <td>
+                        <input
+                          type="checkbox"
+                          class="checkbox"
+                          checked={selectedTasks.has(task.taskID)}
+                          on:change={() => toggleTaskSelection(task.taskID)}
+                        />
+                      </td>
                       <td class="font-semibold">{task.title}</td>
                       <td class="max-w-xs truncate">
                         {task.description || "-"}
@@ -621,6 +822,7 @@ function newProject() {
                       <td>
                         <span
                           class="badge"
+                          class:badge-neutral={task.status === "Pending"}
                           class:badge-success={task.status === "Done"}
                           class:badge-warning={task.status === "In Progress"}
                           class:badge-info={task.status === "To Do"}
@@ -629,11 +831,23 @@ function newProject() {
                         </span>
                       </td>
                       <td>
+                        <span class="badge badge-outline">
+                          {task.projectPhase || "-"}
+                        </span>
+                      </td>
+                      <td>
                         {task.dueDate
                           ? new Date(task.dueDate).toLocaleDateString("de-CH")
                           : "-"}
                       </td>
-                      <td>
+                      <td class="space-x-2">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-warning btn-outline"
+                          on:click={() => editTask(task.taskID)}
+                        >
+                          Edit
+                        </button>
                         <button
                           type="button"
                           class="btn btn-sm btn-error btn-outline"
@@ -654,29 +868,41 @@ function newProject() {
           {/if}
 
           <!-- Actions + Timeline -->
-          <div class="flex gap-4 mb-4 mt-8">
-            <button class="btn btn-neutral">Add Task</button>
-            <button class="btn btn-neutral">Edit Task</button>
-            <button class="btn btn-neutral">Delete Task</button>
-          </div>
-
-          <ul class="menu menu-horizontal bg-base-100 rounded-box gap-2 mb-4">
-            <li>
+          {#if initProject?.Tasks.length}
+            <div class="flex gap-4 mb-4 mt-8">
               <button
-                class="btn btn-soft"
-                on:click={() => timelineChartRef?.resetFocus()}
+                class="btn btn-error"
+                on:click={deleteSelectedTasks}
+                disabled={selectedTasks.size === 0}
               >
-                Focus
+                Delete Selected ({selectedTasks.size})
               </button>
-            </li>
-            <li><button class="btn btn-soft">Edit</button></li>
-            <li><button class="btn btn-soft">Save</button></li>
-          </ul>
+            </div>
+
+            <ul class="menu menu-horizontal bg-base-100 rounded-box gap-2 mb-4">
+              <li>
+                <button
+                  class="btn btn-soft"
+                  on:click={() => timelineChartRef?.resetFocus()}
+                >
+                  Focus
+                </button>
+              </li>
+            </ul>
+          {/if}
 
           <TimelineChart
             bind:this={timelineChartRef}
             start={initProject?.startDate}
             end={initProject?.dueDate}
+                      tasks={initProject?.Tasks || []}
+                      phases={initProject ? {
+                        initiation: initProject.initiationPhase,
+                        planing: initProject.planingPhase,
+                        execution: initProject.executionPhase,
+                        monitoring: initProject.monitoringPhase,
+                        closure: initProject.closurePhase
+                      } : null}
           />
         </div>
 
