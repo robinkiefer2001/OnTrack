@@ -27,7 +27,7 @@
 </div>
 <div class="divMainSplit">
   <div class="divSideBar">
-    <ul class="menu bg-base-200 w-56 rounded-box ulSideBar h-200" >
+    <ul class="menu bg-base-200 w-56 rounded-box ulSideBar" >
       <li class="items-center item">
         <div
           class="avatar avatar-placeholder bg-neutral text-neutral-content w-24 h-24 rounded-full mb-2"

@@ -2,20 +2,21 @@
   import type {
     Project,
     ProjectStatus,
-    customer,
-    Task
+    Customer,
+    ProjectPhase,
+    Task,
   } from "$lib/models/project";
   import {
     addToListProject,
     customerList,
-    projectList
+    projectList,
   } from "$lib/models/mockupData";
   import TimelineChart from "./TimelineChart.svelte";
 
   // State
   let initProject: Project | null = null;
   let selectedProject: Project | null = null;
-  let selectedCustomer: customer | null = null;
+  let selectedCustomer: Customer | null = null;
   let showCustomerSelect = false;
   let selectedRow: number | null = null;
   let showForm = false;
@@ -25,26 +26,78 @@
   let newTask = {
     title: "",
     description: "",
-    status: "To Do" as "To Do" | "In Progress" | "Done",
+    status: "Pending",
     assignedTo: "",
-    dueDate: null as Date | string | null
+    phaseid: null as number | null,
+    projectPhase: "",
+    dueDate: null as Date | string | null,
+    startDate: null as Date | string | null,
   };
 
-  function newProject() {
-    showForm = true;
-    initProject = {
-      title: "",
-      customerID: null,
-      customerName: "",
-      budget: null,
-      dueDate: null,
-      startDate: null,
-      projectID: null,
-      projectManager: "",
-      projectstatus: "Initiation" as ProjectStatus,
-      Tasks: []
-    };
-  }
+function newProject() {
+  showForm = true;
+
+  const projectId = Date.now(); // temporäre ID
+
+  initProject = {
+    title: "",
+    customerID: null,
+    customerName: "",
+    budget: null,
+    dueDate: null,
+    startDate: null,
+    projectID: projectId,
+    projectManager: "",
+    projectstatus: "Initiation" as ProjectStatus,
+    initiationPhase: [
+      {
+        phaseid: projectId + 0,
+        projectID: projectId,
+        phaseName: "Initiation",
+        startDate: null,
+        dueDate: null,
+      },
+    ] as ProjectPhase[],
+    planingPhase: [
+      {
+        phaseid: projectId + 1,
+        projectID: projectId,
+        phaseName: "Planing",
+        startDate: null,
+        dueDate: null,
+      },
+    ] as ProjectPhase[],
+    executionPhase: [
+      {
+        phaseid: projectId + 2,
+        projectID: projectId,
+        phaseName: "Execution",
+        startDate: null,
+        dueDate: null,
+      },
+    ] as ProjectPhase[],
+    closurePhase: [
+      {
+        phaseid: projectId + 3,
+        projectID: projectId,
+        phaseName: "Closure",
+        startDate: null,
+        dueDate: null,
+      },
+    ] as ProjectPhase[],
+    monitoringPhase: [
+      {
+        phaseid: projectId + 4,
+        projectID: projectId,
+        phaseName: "Monitoring",
+        startDate: null,
+        dueDate: null,
+      },
+    ] as ProjectPhase[],
+    Tasks: [],
+  };
+}
+
 
   function selectCustomer() {
     showCustomerSelect = true;
@@ -76,11 +129,14 @@
       taskID: Date.now(),
       projectID: initProject.projectID || 0,
       title: newTask.title,
+      phaseId: newTask.phaseid,
+      projectPhase: newTask.projectPhase,
       description: newTask.description,
-      status: newTask.status,
+      status: newTask.status as "Pending" | "To Do" | "In Progress" | "Done",
       assignedTo: newTask.assignedTo,
       dueDate: toDateOrNull(newTask.dueDate),
-      notificationSent: false
+      startDate: toDateOrNull(newTask.startDate),
+      notificationSent: false,
     };
 
     initProject.Tasks = [...initProject.Tasks, task];
@@ -90,7 +146,10 @@
       description: "",
       status: "To Do",
       assignedTo: "",
-      dueDate: null
+      dueDate: null,
+      startDate: null,
+      phaseid: null,
+      projectPhase: "",
     };
   }
 
@@ -111,7 +170,7 @@
       ...initProject,
       budget: Number.isNaN(parsedBudget) ? null : parsedBudget,
       startDate: toDateOrNull(initProject.startDate as Date | string | null),
-      dueDate: toDateOrNull(initProject.dueDate as Date | string | null)
+      dueDate: toDateOrNull(initProject.dueDate as Date | string | null),
     };
 
     showForm = false;
@@ -128,7 +187,7 @@
     return new Intl.NumberFormat("de-CH", {
       style: "currency",
       currency: "CHF",
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(value);
   }
 
@@ -136,7 +195,9 @@
 </script>
 
 <!-- Top-Menü -->
-<ul class="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-box gap-4 mb-4">
+<ul
+  class="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-box gap-4 mb-4"
+>
   <li>
     <button class="btn btn-neutral" on:click={newProject}>New Project</button>
   </li>
@@ -159,7 +220,12 @@
       </button>
     </li>
     <li>
-      <button class="btn" on:click={() => { /* modifyProject */ }}>
+      <button
+        class="btn"
+        on:click={() => {
+          /* modifyProject */
+        }}
+      >
         Modify Project
       </button>
     </li>
@@ -176,205 +242,289 @@
 </ul>
 
 <!-- Projektliste (immer sichtbar) -->
-<div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2 h-150">
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Project Nr.</th>
-        <th>Customer</th>
-        <th>Project Manager</th>
-        <th>Budget</th>
-        <th>Status</th>
-        <th>Due Date</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each $projectList as p, index}
-        <tr
-          class={`cursor-pointer transition-colors ${
-            selectedRow === index ? "bg-gray-200" : "hover:bg-gray-100"
-          }`}
-          on:click={() => {
-            const isSelected = toggleSelect(index);
-            selectedProject = isSelected
-              ? {
-                  title: p.title,
-                  customerID: p.customerID,
-                  customerName: p.customerName,
-                  budget: p.budget,
-                  dueDate: p.dueDate,
-                  startDate: p.startDate,
-                  projectID: p.projectID,
-                  projectManager: p.projectManager,
-                  projectstatus: p.projectstatus as ProjectStatus,
-                  Tasks: p.Tasks
-                }
-              : null;
-          }}
-        >
-          <td>{p.projectID}</td>
-          <td>{p.customerName}</td>
-          <td>{p.projectManager}</td>
-          <td>{formatBudget(p.budget)}</td>
-          <td>{p.projectstatus as ProjectStatus}</td>
-          <td>
-            {p.dueDate
-              ? p.dueDate.toLocaleDateString("de-CH", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric"
-                })
-              : "-"}
-          </td>
+<div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2">
+  <div class="h-150">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Project Nr.</th>
+          <th>Customer</th>
+          <th>Project Manager</th>
+          <th>Budget</th>
+          <th>Status</th>
+          <th>Due Date</th>
         </tr>
-      {/each}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {#each $projectList as p, index}
+          <tr
+            class={`cursor-pointer transition-colors ${
+              selectedRow === index ? "bg-gray-200" : "hover:bg-gray-100"
+            }`}
+            on:click={() => {
+              const isSelected = toggleSelect(index);
+              selectedProject = isSelected
+                ? {
+                    title: p.title,
+                    customerID: p.customerID,
+                    customerName: p.customerName,
+                    budget: p.budget,
+                    dueDate: p.dueDate,
+                    startDate: p.startDate,
+                    projectID: p.projectID,
+                    projectManager: p.projectManager,
+                    projectstatus: p.projectstatus as ProjectStatus,
+                    Tasks: p.Tasks,
+                    initiationPhase: p.initiationPhase,
+                    planingPhase: p.planingPhase,
+                    executionPhase: p.executionPhase,
+                    monitoringPhase: p.monitoringPhase,
+                    closurePhase: p.closurePhase,
+                  }
+                : null;
+            }}
+          >
+            <td>{p.projectID}</td>
+            <td>{p.customerName}</td>
+            <td>{p.projectManager}</td>
+            <td>{formatBudget(p.budget)}</td>
+            <td>{p.projectstatus as ProjectStatus}</td>
+            <td>
+              {p.dueDate
+                ? p.dueDate.toLocaleDateString("de-CH", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "-"}
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
 </div>
 
-
 {#if showForm}
+  <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
     <div
-        class="fixed inset-0 bg-black/40 flex items-center justify-center w-full h-full"
+      class="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6"
     >
-        <div class="bg-white p-6 rounded-lg shadow-xl h-full w-full">
-            <div class="tabs tabs-lift content-center">
-                <input
-                    type="radio"
-                    name="my_tabs_1"
-                    class="tab"
-                    aria-label="Project Details"
-                    checked={true}
-                />
-                <div class="tab-content bg-base-100 border-base-300 p-6">
-                    <div class="grid grid-cols-3 gap-6 mb-4">
-                        <div class="flex-1">
-                            <p class="text-2xl font-bold mb-4">Project Name</p>
-                            <input
-                                type="text"
-                                placeholder="Type here"
-                                class="input"
-                                bind:value={initProject!.title}
-                            />
-                        </div>
-                        <div class="flex-1">
-                            <p class="text-2xl font-bold mb-4">Customer</p>
-                            <input
-                                type="text"
-                                placeholder="Type here"
-                                class="input"
-                                bind:value={initProject!.customerName}
-                                readonly
-                            />
-                            <button
-                                class="btn btn-neutral"
-                                on:click={selectCustomer}
-                            >
-                                Select Customer
-                            </button>
-                            {#if showCustomerSelect}
-                                <div
-                                    class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-                                >
-                                    <div
-                                        class="bg-white p-4 rounded-lg shadow-xl w-80"
-                                    >
-                                        <input
-                                            type="text"
-                                            placeholder="Search Customer"
-                                            class="input w-full mb-4"
-                                        />
-                                        <ul class="menu bg-base-100 w-full">
-                                            {#each customerList as c}
-                                                <li>
-                                                    <button
-                                                        on:click={() => {
-                                                            initProject!.customerID =
-                                                                c.customerID;
-                                                            initProject!.customerName =
-                                                                c.companyName;
-                                                            showCustomerSelect = false;
-                                                        }}
-                                                    >
-                                                        {c.companyName}
-                                                    </button>
-                                                </li>
-                                            {/each}
-                                        </ul>
-                                        <button
-                                            class="btn btn-neutral absolute top-4 right-4"
-                                            on:click={() => {
-                                                showCustomerSelect = false;
-                                            }}
-                                        >
-                                            Close</button
-                                        >
-                                    </div>
-                                </div>
-                            {/if}
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="text-xl font-bold mb-4">
-                                Project Manager
-                            </h3>
-                            <input
-                                type="text"
-                                placeholder="Type here"
-                                class="input"
-                                bind:value={initProject!.projectManager}
-                            />
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="text-xl font-bold mb-4">Budget</h3>
-                            <input
-                                type="text"
-                                placeholder="Type here"
-                                class="input"
-                                bind:value={initProject!.budget}
-                            />
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="text-xl font-bold mb-4">Start Date</h3>
-                            <input
-                                type="date"
-                                placeholder="Type here"
-                                class="input"
-                                bind:value={initProject!.startDate}
-                            />
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="text-xl font-bold mb-4">Due Date</h3>
-                            <input
-                                type="date"
-                                placeholder="Type here"
-                                class="input"
-                                bind:value={initProject!.dueDate}
-                            />
-                        </div>
-                    </div>
-                </div>
-   
-
-        <!-- Tab 2: Tasks + Timeline -->
+      <div class="tabs tabs-lift content-center">
         <input
           type="radio"
           name="my_tabs_1"
           class="tab"
-          aria-label="Tasks"
+          aria-label="Project Details"
+          checked={true}
         />
         <div class="tab-content bg-base-100 border-base-300 p-6">
-          <h3 class="text-xl font-bold mb-4">Add Task</h3>
-
+          <div class="grid grid-cols-3 gap-6 mb-4">
+            <div class="flex-1">
+              <p class="text-2xl font-bold mb-4">Project Name</p>
+              <input
+                type="text"
+                placeholder="Type here"
+                class="input"
+                bind:value={initProject!.title}
+              />
+            </div>
+            <div class="flex-1">
+              <p class="text-2xl font-bold mb-4">Customer</p>
+              <input
+                type="text"
+                placeholder="Type here"
+                class="input"
+                bind:value={initProject!.customerName}
+                readonly
+                required
+              />
+              <button class="btn btn-neutral" on:click={selectCustomer}>
+                Select Customer
+              </button>
+              {#if showCustomerSelect}
+                <div
+                  class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+                >
+                  <div class="bg-white p-4 rounded-lg shadow-xl w-80">
+                    <input
+                      type="text"
+                      placeholder="Search Customer"
+                      class="input w-full mb-4"
+                    />
+                    <ul class="menu bg-base-100 w-full">
+                      {#each customerList as c}
+                        <li>
+                          <button
+                            on:click={() => {
+                              initProject!.customerID = c.customerID;
+                              initProject!.customerName = c.companyName;
+                              showCustomerSelect = false;
+                            }}
+                          >
+                            {c.companyName}
+                          </button>
+                        </li>
+                      {/each}
+                    </ul>
+                    <button
+                      class="btn btn-neutral absolute top-4 right-4"
+                      on:click={() => {
+                        showCustomerSelect = false;
+                      }}
+                    >
+                      Close</button
+                    >
+                  </div>
+                </div>
+              {/if}
+            </div>
+            <div class="flex-1">
+              <h3 class="text-xl font-bold mb-4">Project Manager</h3>
+              <input
+                type="text"
+                placeholder="Type here"
+                class="input"
+                bind:value={initProject!.projectManager}
+              />
+            </div>
+            <div class="flex-1">
+              <h3 class="text-xl font-bold mb-4">Budget</h3>
+              <input
+                type="text"
+                placeholder="Type here"
+                class="input"
+                bind:value={initProject!.budget}
+              />
+            </div>
+            <div class="flex-1">
+              <h3 class="text-xl font-bold mb-4">Start Date</h3>
+              <input
+                type="date"
+                placeholder="Type here"
+                class="input"
+                bind:value={initProject!.startDate}
+              />
+            </div>
+            <div class="flex-1">
+              <h3 class="text-xl font-bold mb-4">Due Date</h3>
+              <input
+                type="date"
+                placeholder="Type here"
+                class="input"
+                bind:value={initProject!.dueDate}
+              />
+            </div>
+          </div>
+        </div>
+        <input type="radio" name="my_tabs_1" class="tab" aria-label="Project Phases" />
+        <div class="tab-content bg-base-100 border-base-300 px-6 py-4">
           <!-- Task-Form -->
           <div class="grid grid-cols-2 gap-4 mb-4">
             <label class="form-control w-full">
               <div class="label">
-                <span class="label-text">Task Name *</span>
+                <h3 class="text-xl font-bold mb-4">Initiation</h3>
+              </div>
+              <p>Start Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.initiationPhase[0].startDate}
+              />
+              <p>Due Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.initiationPhase[0].dueDate}
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-4">Planning</h3>
+              </div>
+              <p>Start Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.planingPhase[0].startDate}
+              />
+              <p>Due Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.planingPhase[0].dueDate}
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-4">Execution</h3>
+              </div>
+              <p>Start Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.executionPhase[0].startDate}
+              />
+              <p>Due Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.executionPhase[0].dueDate}
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-4">Closure</h3>
+              </div>
+              <p>Start Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.closurePhase[0].startDate}
+              />
+              <p>Due Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.closurePhase[0].dueDate}
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-4">Monitoring</h3>
+              </div>
+              <p>Start Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.monitoringPhase[0].startDate}
+              />
+              <p>Due Date</p>
+              <input
+                type="date"
+                class="input"
+                bind:value={initProject!.monitoringPhase[0].dueDate}
+              />
+            </label>
+          </div>
+        </div>
+      
+
+        <!-- Tab 2: Tasks + Timeline -->
+        <input type="radio" name="my_tabs_1" class="tab" aria-label="Tasks"
+        checked
+        />
+        <div class="tab-content bg-base-100 border-base-300 px-6 py-4">
+          <!-- Task-Form -->
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-4">Task Name</h3>
               </div>
               <input
                 type="text"
-                class="input input-bordered w-full"
+                class="input"
                 placeholder="Enter task name"
                 bind:value={newTask.title}
               />
@@ -382,47 +532,50 @@
 
             <label class="form-control w-full">
               <div class="label">
-                <span class="label-text">Assigned to</span>
+                <h3 class="text-xl font-bold mb-4">Assigned to</h3>
               </div>
               <input
                 type="text"
-                class="input input-bordered w-full"
+                class="input"
                 placeholder="Name"
                 bind:value={newTask.assignedTo}
               />
             </label>
 
+            <div class="form-control w-full">
+              <span class="text-xl font-bold mb-4">Status</span>
+              <input
+                type="text"
+                class="input input-bordered w-full"
+                value="Pending"
+                readonly
+                disabled
+              />
+            </div>
             <label class="form-control w-full">
               <div class="label">
-                <span class="label-text">Status</span>
-              </div>
-              <select
-                class="select select-bordered w-full"
-                bind:value={newTask.status}
-              >
-                <option value="To Do">To Do</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Done">Done</option>
-              </select>
-            </label>
-
-            <label class="form-control w-full">
-              <div class="label">
-                <span class="label-text">Due Date</span>
+                <h3 class="text-xl font-bold mb-4">Start Date</h3>
               </div>
               <input
                 type="date"
-                class="input input-bordered w-full"
-                bind:value={newTask.dueDate}
+                class="input"
+                bind:value={newTask.startDate}
               />
             </label>
 
-            <label class="form-control w-full col-span-2">
+            <label class="form-control w-full">
               <div class="label">
-                <span class="label-text">Description</span>
+                <h3 class="text-xl font-bold mb-4">Due Date</h3>
+              </div>
+              <input type="date" class="input" bind:value={newTask.dueDate} />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-4">Description</h3>
               </div>
               <textarea
-                class="textarea textarea-bordered w-full"
+                class="textarea span-2"
                 rows="3"
                 placeholder="Description"
                 bind:value={newTask.description}
@@ -533,6 +686,7 @@
           name="my_tabs_1"
           class="tab"
           aria-label="Notifications"
+          checked
         />
         <div class="tab-content bg-base-100 border-base-300 p-6"></div>
       </div>

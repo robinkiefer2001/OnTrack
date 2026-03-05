@@ -1,4 +1,4 @@
-import type { customer, customerEmployee, Project, ProjectStatus } from "./project";
+import type { Customer, CustomerEmployee, Project, ProjectStatus } from "./project";
 import { writable } from "svelte/store";
 
 const firstNames = [
@@ -114,7 +114,7 @@ function buildCompanyName(index: number): string {
     return `${randomFrom(companyPrefixes)} ${randomFrom(companySuffixes)} ${index + 1}`;
 }
 
-export const customerList: customer[] = Array.from({ length: 10 }, (_, index) => {
+export const customerList: Customer[] = Array.from({ length: 10 }, (_, index) => {
     const customerID = 10000 + index;
     const contactName = buildFullName();
     const companyName = buildCompanyName(index);
@@ -130,7 +130,7 @@ export const customerList: customer[] = Array.from({ length: 10 }, (_, index) =>
     };
 });
 
-export const customerEmployeeList: customerEmployee[] = customerList.flatMap((customer) =>
+export const customerEmployeeList: CustomerEmployee[] = customerList.flatMap((customer) =>
     Array.from({ length: 5 }, (_, index) => {
         const firstName = randomFrom(firstNames);
         const lastName = randomFrom(lastNames);
@@ -170,6 +170,11 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
         projectID: 50000 + index,
         projectManager: `${manager.firstName} ${manager.lastName}`,
         projectstatus: randomFrom(statuses),
+        initiationPhase: [{ startDate, endDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000) }],
+        planingPhase: [{ startDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000), endDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000) }],
+        executionPhase: [{ startDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000), endDate: new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000) }],
+        monitoringPhase: [{ startDate: new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000), endDate: dueDate }],
+        closurePhase: [{ startDate: dueDate, endDate: new Date(dueDate.getTime() + 7 * 24 * 60 * 60 * 1000) }],
         Tasks: Array.from({ length: randomInt(3, 10) }, (_, taskIndex) => {
             const taskDueDate = new Date(startDate);
             taskDueDate.setDate(taskDueDate.getDate() + randomInt(7, 180));
