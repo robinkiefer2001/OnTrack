@@ -40,6 +40,44 @@
     (newTask.projectPhase || "") as ProjectPhase["phaseName"] | "",
   );
 
+  // Bidirectional sync: Project start = Initiation start
+  $: if (initProject?.startDate && initProject?.initiationPhase[0]) {
+    initProject.initiationPhase[0].startDate = initProject.startDate;
+  }
+
+  // Bidirectional sync: Project end = Closure end
+  $: if (initProject?.dueDate && initProject?.closurePhase[0]) {
+    initProject.closurePhase[0].dueDate = initProject.dueDate;
+  }
+
+  // Sync Initiation start back to Project start
+  $: if (initProject?.initiationPhase[0]?.startDate && initProject) {
+    if (initProject.startDate !== initProject.initiationPhase[0].startDate) {
+      initProject.startDate = initProject.initiationPhase[0].startDate;
+    }
+  }
+
+  // Sync Closure end back to Project end
+  $: if (initProject?.closurePhase[0]?.dueDate && initProject) {
+    if (initProject.dueDate !== initProject.closurePhase[0].dueDate) {
+      initProject.dueDate = initProject.closurePhase[0].dueDate;
+    }
+  }
+
+  // Synchronize phase dates: start date of next phase = due date of previous phase
+  $: if (initProject?.initiationPhase[0]?.dueDate && initProject?.planingPhase[0]) {
+    initProject.planingPhase[0].startDate = initProject.initiationPhase[0].dueDate;
+  }
+  $: if (initProject?.planingPhase[0]?.dueDate && initProject?.executionPhase[0]) {
+    initProject.executionPhase[0].startDate = initProject.planingPhase[0].dueDate;
+  }
+  $: if (initProject?.executionPhase[0]?.dueDate && initProject?.monitoringPhase[0]) {
+    initProject.monitoringPhase[0].startDate = initProject.executionPhase[0].dueDate;
+  }
+  $: if (initProject?.monitoringPhase[0]?.dueDate && initProject?.closurePhase[0]) {
+    initProject.closurePhase[0].startDate = initProject.monitoringPhase[0].dueDate;
+  }
+
   function setTaskPhase(name: ProjectPhase["phaseName"]) {
     if (!initProject) return;
 
@@ -552,12 +590,15 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.initiationPhase[0].startDate}
+                readonly
               />
               <p>Due Date</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.initiationPhase[0].dueDate}
+                min={toInputDate(initProject!.initiationPhase[0].startDate) || undefined}
+                max={toInputDate(initProject!.dueDate) || undefined}
               />
             </label>
             <label class="form-control w-full">
@@ -569,12 +610,15 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.planingPhase[0].startDate}
+                readonly
               />
               <p>Due Date</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.planingPhase[0].dueDate}
+                min={toInputDate(initProject!.planingPhase[0].startDate) || undefined}
+                max={toInputDate(initProject!.dueDate) || undefined}
               />
             </label>
             <label class="form-control w-full">
@@ -586,12 +630,15 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.executionPhase[0].startDate}
+                readonly
               />
               <p>Due Date</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.executionPhase[0].dueDate}
+                min={toInputDate(initProject!.executionPhase[0].startDate) || undefined}
+                max={toInputDate(initProject!.dueDate) || undefined}
               />
             </label>
             <label class="form-control w-full">
@@ -603,12 +650,14 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.closurePhase[0].startDate}
+                readonly
               />
               <p>Due Date</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.closurePhase[0].dueDate}
+                readonly
               />
             </label>
             <label class="form-control w-full">
@@ -620,12 +669,15 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.monitoringPhase[0].startDate}
+                readonly
               />
               <p>Due Date</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.monitoringPhase[0].dueDate}
+                min={toInputDate(initProject!.monitoringPhase[0].startDate) || undefined}
+                max={toInputDate(initProject!.dueDate) || undefined}
               />
             </label>
           </div>
