@@ -85,7 +85,6 @@ const statuses: ProjectStatus[] = [
     "Initiation",
     "Planning",
     "Execution",
-    "Monitoring",
     "Closure",
     "Closed",
     "Cancelled",
@@ -173,8 +172,7 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
         initiationPhase: [{ startDate, endDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000) }],
         planingPhase: [{ startDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000), endDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000) }],
         executionPhase: [{ startDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000), endDate: new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000) }],
-        monitoringPhase: [{ startDate: new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000), endDate: dueDate }],
-        closurePhase: [{ startDate: dueDate, endDate: new Date(dueDate.getTime() + 7 * 24 * 60 * 60 * 1000) }],
+        closurePhase: [{ startDate: new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000), endDate: dueDate }],
         Tasks: Array.from({ length: randomInt(3, 10) }, (_, taskIndex) => {
             const taskDueDate = new Date(startDate);
             taskDueDate.setDate(taskDueDate.getDate() + randomInt(7, 180));

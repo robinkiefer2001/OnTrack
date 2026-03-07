@@ -2,6 +2,7 @@
   import { onMount, onDestroy, afterUpdate } from "svelte";
   import { browser } from "$app/environment";
   import { Chart } from "chart.js/auto";
+  import ChartDataLabels from "chartjs-plugin-datalabels";
   import "chartjs-adapter-date-fns";
   import type { Task, ProjectPhase } from "$lib/models/project";
 
@@ -15,13 +16,12 @@
     initiation: ProjectPhase[];
     planing: ProjectPhase[];
     execution: ProjectPhase[];
-    monitoring: ProjectPhase[];
     closure: ProjectPhase[];
   } | null = null;
 
-  type ViewMode = "phases" | "tasks" | "combined";
+  type ViewMode = "phases" | "tasks";
   let viewMode: ViewMode = "phases";
-  let expandedPhases = new Set<string>(["Initiation", "Planing", "Execution", "Monitoring", "Closure"]);
+  let expandedPhases = new Set<string>(["Initiation", "Planing", "Execution", "Closure"]);
   
   type TimeUnit = "day" | "week" | "month";
   let timeUnit: TimeUnit = "week";
@@ -43,7 +43,6 @@
       ...phases.initiation,
       ...phases.planing,
       ...phases.execution,
-      ...phases.monitoring,
       ...phases.closure,
     ];
 
@@ -82,6 +81,21 @@
     return parseSwissDate(value);
   }
 
+  // Setze Start auf 00:00:00 des Starttages und Ende auf 23:59:59 des Endtages
+  // Damit füllt der Balken den Kalender-Kasten zwischen zwei Gitterlinien komplett aus
+  function offsetDatesForBarPositioning(startTime: number, endTime: number) {
+    const start = new Date(startTime);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(endTime);
+    end.setHours(23, 59, 59, 999);
+
+    return {
+      start: start.getTime(),
+      end: end.getTime()
+    };
+  }
+
   // PHASE VIEW: Nur Phasen anzeigen
   function createPhaseView() {
     const datasets: any[] = [];
@@ -91,11 +105,10 @@
       Initiation: { bg: "rgba(99, 102, 241, 0.65)", border: "rgba(99, 102, 241, 1)" },
       Planing: { bg: "rgba(59, 130, 246, 0.65)", border: "rgba(59, 130, 246, 1)" },
       Execution: { bg: "rgba(168, 85, 247, 0.65)", border: "rgba(168, 85, 247, 1)" },
-      Monitoring: { bg: "rgba(236, 72, 153, 0.65)", border: "rgba(236, 72, 153, 1)" },
       Closure: { bg: "rgba(20, 184, 166, 0.65)", border: "rgba(20, 184, 166, 1)" }
     };
 
-    const phaseOrder = ["Initiation", "Planing", "Execution", "Monitoring", "Closure"];
+    const phaseOrder = ["Initiation", "Planing", "Execution", "Closure"];
     
     // Alle Phase-Labels hinzufügen
     phaseOrder.forEach(phaseName => labels.push(phaseName));
@@ -105,7 +118,6 @@
         ...(phases.initiation || []),
         ...(phases.planing || []),
         ...(phases.execution || []),
-        ...(phases.monitoring || []),
         ...(phases.closure || [])
       ];
 
@@ -123,11 +135,12 @@
         if (phaseStart && phaseEnd) {
           const xMin = Math.min(phaseStart.getTime(), phaseEnd.getTime());
           const xMax = Math.max(phaseStart.getTime(), phaseEnd.getTime());
+          const { start, end } = offsetDatesForBarPositioning(xMin, xMax);
           
           datasets.push({
             label: `${phaseName} (${phaseDateInfo})`,
             data: [{
-              x: [xMin, xMax],
+              x: [start, end],
               y: phaseLabel
             }],
             backgroundColor: phaseColors[phaseName as keyof typeof phaseColors].bg,
@@ -144,11 +157,12 @@
           const dayInMs = 24 * 60 * 60 * 1000;
           const xMin = fallbackDate!.getTime();
           const xMax = fallbackDate!.getTime() + dayInMs;
+          const { start, end } = offsetDatesForBarPositioning(xMin, xMax);
           
           datasets.push({
             label: `${phaseName} (incomplete)`,
             data: [{
-              x: [xMin, xMax],
+              x: [start, end],
               y: phaseLabel
             }],
             backgroundColor: phaseColors[phaseName as keyof typeof phaseColors].bg,
@@ -167,206 +181,55 @@
     return { datasets, labels };
   }
 
-  // TASK VIEW: Tasks gruppiert nach Phasen
+  // TASK VIEW: Tasks gruppiert nach Phasen mit 4-stelligen Task-Nummern und Phasen-Farben
   function createTaskView() {
     const datasets: any[] = [];
     const labels: string[] = [];
 
-    const taskColors = {
-      "Pending": { bg: "rgba(148, 163, 184, 0.8)", border: "rgba(148, 163, 184, 1)" },
-      "To Do": { bg: "rgba(96, 165, 250, 0.8)", border: "rgba(96, 165, 250, 1)" },
-      "In Progress": { bg: "rgba(251, 191, 36, 0.8)", border: "rgba(251, 191, 36, 1)" },
-      "Done": { bg: "rgba(34, 197, 94, 0.8)", border: "rgba(34, 197, 94, 1)" }
-    };
-
-    const phaseOrder = ["Initiation", "Planing", "Execution", "Monitoring", "Closure"];
-    
-    if (phases) {
-      const allPhases = [
-        ...(phases.initiation || []),
-        ...(phases.planing || []),
-        ...(phases.execution || []),
-        ...(phases.monitoring || []),
-        ...(phases.closure || [])
-      ];
-
-      phaseOrder.forEach((phaseName, phaseIndex) => {
-        const phase = allPhases.find(p => p.phaseName === phaseName);
-        const phaseTasks = tasks.filter(t => t.projectPhase === phaseName);
-        
-        if (phaseTasks.length > 0 && expandedPhases.has(phaseName)) {
-          phaseTasks.forEach((task) => {
-            const taskStart = toDateOrNull(task.startDate);
-            const taskEnd = toDateOrNull(task.dueDate);
-            
-            const taskLabel = `  ${task.title}`;
-            labels.push(taskLabel);
-            
-            if (taskStart && taskEnd) {
-              const xMin = Math.min(taskStart.getTime(), taskEnd.getTime());
-              const xMax = Math.max(taskStart.getTime(), taskEnd.getTime());
-              
-              const color = taskColors[task.status as keyof typeof taskColors] || taskColors.Pending;
-              
-              datasets.push({
-                label: `${task.title} (${phaseName})`,
-                data: [{
-                  x: [xMin, xMax],
-                  y: taskLabel
-                }],
-                backgroundColor: color.bg,
-                borderColor: color.border,
-                borderWidth: 2,
-                borderSkipped: false,
-                barThickness: 16,
-                categoryPercentage: 1.0,
-                barPercentage: 0.9
-              });
-            }
-          });
-          
-          // Add spacing between phase groups
-          if (phaseIndex < phaseOrder.length - 1) {
-            labels.push(""); // Empty spacer
-          }
-        }
-      });
-    }
-
-    return { datasets, labels };
-  }
-
-  // COMBINED VIEW: Phasen als Hintergrund, Tasks im Vordergrund
-  function createCombinedView() {
-    const phaseDatasets: any[] = [];
-    const taskDatasets: any[] = [];
-    const labels: string[] = [];
-    
     const phaseColors = {
-      Initiation: { bg: "rgba(99, 102, 241, 0.15)", border: "rgba(99, 102, 241, 0.4)" },
-      Planing: { bg: "rgba(59, 130, 246, 0.15)", border: "rgba(59, 130, 246, 0.4)" },
-      Execution: { bg: "rgba(168, 85, 247, 0.15)", border: "rgba(168, 85, 247, 0.4)" },
-      Monitoring: { bg: "rgba(236, 72, 153, 0.15)", border: "rgba(236, 72, 153, 0.4)" },
-      Closure: { bg: "rgba(20, 184, 166, 0.15)", border: "rgba(20, 184, 166, 0.4)" }
+      Initiation: { bg: "rgba(99, 102, 241, 0.8)", border: "rgba(99, 102, 241, 1)" },
+      Planing: { bg: "rgba(59, 130, 246, 0.8)", border: "rgba(59, 130, 246, 1)" },
+      Execution: { bg: "rgba(168, 85, 247, 0.8)", border: "rgba(168, 85, 247, 1)" },
+      Closure: { bg: "rgba(20, 184, 166, 0.8)", border: "rgba(20, 184, 166, 1)" }
     };
 
-    const taskColors = {
-      "Pending": { bg: "rgba(148, 163, 184, 0.85)", border: "rgba(148, 163, 184, 1)" },
-      "To Do": { bg: "rgba(96, 165, 250, 0.85)", border: "rgba(96, 165, 250, 1)" },
-      "In Progress": { bg: "rgba(251, 191, 36, 0.85)", border: "rgba(251, 191, 36, 1)" },
-      "Done": { bg: "rgba(34, 197, 94, 0.85)", border: "rgba(34, 197, 94, 1)" }
-    };
+    const phaseOrder = ["Initiation", "Planing", "Execution", "Closure"];
+    let taskCounter = 0; // Globale Task-Nummer
 
-    const phaseOrder = ["Initiation", "Planing", "Execution", "Monitoring", "Closure"];
-    
-    if (phases) {
-      const allPhases = [
-        ...(phases.initiation || []),
-        ...(phases.planing || []),
-        ...(phases.execution || []),
-        ...(phases.monitoring || []),
-        ...(phases.closure || [])
-      ];
+    phaseOrder.forEach((phaseName) => {
+      const phaseTasks = tasks.filter((t) => t.projectPhase === phaseName);
 
-      // Zuerst alle Labels hinzufügen
-      phaseOrder.forEach(phaseName => {
-        const phase = allPhases.find(p => p.phaseName === phaseName);
-        const phaseStart = phase ? toDateOrNull(phase.startDate) : null;
-        const phaseEnd = phase ? toDateOrNull(phase.dueDate) : null;
-        const startStr = phaseStart ? phaseStart.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : 'n/a';
-        const endStr = phaseEnd ? phaseEnd.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : 'n/a';
-        const phaseLabel = `${phaseName} (${startStr} - ${endStr})`;
-        labels.push(phaseLabel);
-      });
+      phaseTasks.forEach((task) => {
+        const taskStart = toDateOrNull(task.startDate);
+        const taskEnd = toDateOrNull(task.dueDate);
 
-      phaseOrder.forEach(phaseName => {
-        const phase = allPhases.find(p => p.phaseName === phaseName);
-        
-        const phaseStart = phase ? toDateOrNull(phase.startDate) : null;
-        const phaseEnd = phase ? toDateOrNull(phase.dueDate) : null;
-        
-        const startStr = phaseStart ? phaseStart.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : 'n/a';
-        const endStr = phaseEnd ? phaseEnd.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : 'n/a';
-        const phaseLabel = `${phaseName} (${startStr} - ${endStr})`;
+        taskCounter++;
+        const taskId = `T${taskCounter.toString().padStart(4, "0")}`;
+        const taskLabel = `${taskId}: ${task.title}`;
+        labels.push(taskLabel);
 
-        // Phase background bar
-        if (phaseStart && phaseEnd) {
-          const xMin = Math.min(phaseStart.getTime(), phaseEnd.getTime());
-          const xMax = Math.max(phaseStart.getTime(), phaseEnd.getTime());
-          
-          phaseDatasets.push({
-            label: `${phaseName} Phase`,
+        if (taskStart && taskEnd) {
+          const { start, end } = offsetDatesForBarPositioning(taskStart.getTime(), taskEnd.getTime());
+          const color = phaseColors[phaseName as keyof typeof phaseColors];
+
+          datasets.push({
+            label: taskLabel,
             data: [{
-              x: [xMin, xMax],
-              y: phaseLabel
+              x: [start, end],
+              y: taskLabel,
             }],
-            backgroundColor: phaseColors[phaseName as keyof typeof phaseColors].bg,
-            borderColor: phaseColors[phaseName as keyof typeof phaseColors].border,
+            backgroundColor: color.bg,
+            borderColor: color.border,
             borderWidth: 1,
             borderSkipped: false,
-            barThickness: 24,
             categoryPercentage: 1.0,
             barPercentage: 1.0,
-            order: 2
-          });
-        } else if (phaseStart || phaseEnd) {
-          // Show partial bar with dashed border if only one date is set
-          const fallbackDate = phaseStart || phaseEnd;
-          const dayInMs = 24 * 60 * 60 * 1000;
-          const xMin = fallbackDate!.getTime();
-          const xMax = fallbackDate!.getTime() + dayInMs; // 1 day placeholder
-          
-          phaseDatasets.push({
-            label: `${phaseName} Phase (incomplete)`,
-            data: [{
-              x: [xMin, xMax],
-              y: phaseLabel
-            }],
-            backgroundColor: phaseColors[phaseName as keyof typeof phaseColors].bg,
-            borderColor: phaseColors[phaseName as keyof typeof phaseColors].border,
-            borderWidth: 2,
-            borderSkipped: false,
-            borderDash: [5, 5],
-            barThickness: 24,
-            categoryPercentage: 1.0,
-            barPercentage: 1.0,
-            order: 2
           });
         }
-
-        // Tasks for this phase
-        const phaseTasks = tasks.filter(t => t.projectPhase === phaseName);
-        phaseTasks.forEach((task) => {
-          const taskStart = toDateOrNull(task.startDate);
-          const taskEnd = toDateOrNull(task.dueDate);
-          
-          if (taskStart && taskEnd) {
-            const xMin = Math.min(taskStart.getTime(), taskEnd.getTime());
-            const xMax = Math.max(taskStart.getTime(), taskEnd.getTime());
-            
-            const color = taskColors[task.status as keyof typeof taskColors] || taskColors.Pending;
-            
-            taskDatasets.push({
-              label: task.title,
-              data: [{
-                x: [xMin, xMax],
-                y: phaseLabel
-              }],
-              backgroundColor: color.bg,
-              borderColor: color.border,
-              borderWidth: 2,
-              borderSkipped: false,
-              barThickness: 12,
-              categoryPercentage: 0.9,
-              barPercentage: 0.9,
-              order: 1
-            });
-          }
-        });
       });
-    }
+    });
 
-    return { datasets: [...taskDatasets, ...phaseDatasets], labels };
+    return { datasets, labels };
   }
 
   function createGanttData() {
@@ -375,8 +238,6 @@
         return createPhaseView();
       case "tasks":
         return createTaskView();
-      case "combined":
-        return createCombinedView();
       default:
         return createPhaseView();
     }
@@ -388,17 +249,27 @@
     // Plugin nur im Browser laden
     const zoomModule = await import("chartjs-plugin-zoom");
     const zoomPlugin = zoomModule.default ?? zoomModule;
-    Chart.register(zoomPlugin);
+    Chart.register(zoomPlugin, ChartDataLabels);
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const { startDate, endDate } = getProjectRange();
 
+    // Für Monatsansicht: Setze Start auf 1. des Monats, in dem das Projekt startet
+    let minDate = startDate ? startDate.toISOString() : undefined;
+    if (timeUnit === 'month' && startDate) {
+      const chartStart = new Date(startDate);
+      chartStart.setDate(1);
+      chartStart.setHours(0, 0, 0, 0);
+      minDate = chartStart.toISOString();
+    }
+
     const ganttData = createGanttData();
 
     chart = new Chart(ctx, {
       type: "bar",
+      plugins: [ChartDataLabels],
       data: {
         labels: ganttData.labels,
         datasets: ganttData.datasets,
@@ -407,6 +278,11 @@
         indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
+        layout: {
+          padding: {
+            right: 36
+          }
+        },
         scales: {
           x: {
             type: "time",
@@ -418,14 +294,16 @@
                 month: 'MMM yyyy'
               }
             },
-            min: startDate ? startDate.toISOString() : undefined,
+            min: minDate,
             max: endDate ? endDate.toISOString() : undefined,
+            offset: false,
             grid: {
               display: true,
               color: 'rgba(0, 0, 0, 0.05)',
               drawOnChartArea: true
             },
             ticks: {
+              align: 'start',
               maxRotation: 0,
               minRotation: 0,
               font: {
@@ -437,19 +315,23 @@
           },
           y: {
             type: "category",
-            stacked: false,
+            stacked: true,
+            offset: true,
             grid: {
-              display: false
+              display: true,
+              drawOnChartArea: true,
+              color: "rgba(0, 0, 0, 0.06)"
             },
             ticks: {
+              autoSkip: false,
               font: {
-                size: 12,
+                size: 11,
                 weight: (context: any) => {
                   // Bold for phase names in task view
                   return context.tick.label && !context.tick.label.startsWith('  ') ? 'bold' : 'normal';
                 }
               },
-              padding: 2
+              padding: 5
             }
           },
         },
@@ -502,6 +384,22 @@
               mode: "x",
             },
           },
+          // Custom Plugin: Text auf Balken zeichnen
+          datalabels: {
+            display: (context: any) => viewMode === "tasks" && !!context?.dataset?.label,
+            color: "#000000",
+            anchor: "start",
+            align: "right",
+            offset: 10,
+            clamp: true,
+            clip: false,
+            padding: { left: 4, right: 4, top: 1, bottom: 1 },
+            font: { size: 10, weight: "bold" },
+            formatter: (_value: any, context: any) => {
+              const label = context?.dataset?.label as string | undefined;
+              return label ?? "";
+            }
+          }
         },
       },
     });
@@ -517,7 +415,17 @@
     chart.data.labels = ganttData.labels;
 
     const x: any = chart.options.scales!.x;
-    x.min = startDate ? startDate.toISOString() : undefined;
+    
+    // Für Monatsansicht: Setze Start auf 1. des Monats, in dem das Projekt startet
+    if (timeUnit === 'month' && startDate) {
+      const chartStart = new Date(startDate);
+      chartStart.setDate(1);
+      chartStart.setHours(0, 0, 0, 0);
+      x.min = chartStart.toISOString();
+    } else {
+      x.min = startDate ? startDate.toISOString() : undefined;
+    }
+    
     x.max = endDate ? endDate.toISOString() : undefined;
     if (x.time) {
       x.time.unit = timeUnit;
@@ -587,12 +495,6 @@
       >
         Tasks
       </button>
-      <button 
-        class="tab {viewMode === 'combined' ? 'tab-active' : ''}" 
-        on:click={() => switchView('combined')}
-      >
-        Combined
-      </button>
     </div>
 
     <div class="flex gap-4 items-center">
@@ -627,25 +529,25 @@
 
   <!-- Legends and Info -->
   <div class="mt-3">
-    {#if viewMode === 'tasks' || viewMode === 'combined'}
-      <!-- Task Status Legend -->
+    {#if viewMode === 'tasks'}
+      <!-- Phase Color Legend -->
       <div class="flex gap-4 justify-center text-sm items-center mb-2">
-        <span class="font-semibold text-gray-600">Status:</span>
+        <span class="font-semibold text-gray-600">Task-Farben (nach Phase):</span>
         <div class="flex items-center gap-1.5">
-          <div class="w-4 h-4 rounded" style="background-color: rgba(148, 163, 184, 0.8); border: 1.5px solid rgba(148, 163, 184, 1);"></div>
-          <span>Pending</span>
+          <div class="w-4 h-4 rounded" style="background-color: rgba(99, 102, 241, 0.8); border: 1.5px solid rgba(99, 102, 241, 1);"></div>
+          <span>Initiation</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <div class="w-4 h-4 rounded" style="background-color: rgba(96, 165, 250, 0.8); border: 1.5px solid rgba(96, 165, 250, 1);"></div>
-          <span>To Do</span>
+          <div class="w-4 h-4 rounded" style="background-color: rgba(59, 130, 246, 0.8); border: 1.5px solid rgba(59, 130, 246, 1);"></div>
+          <span>Planning</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <div class="w-4 h-4 rounded" style="background-color: rgba(251, 191, 36, 0.8); border: 1.5px solid rgba(251, 191, 36, 1);"></div>
-          <span>In Progress</span>
+          <div class="w-4 h-4 rounded" style="background-color: rgba(168, 85, 247, 0.8); border: 1.5px solid rgba(168, 85, 247, 1);"></div>
+          <span>Execution</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <div class="w-4 h-4 rounded" style="background-color: rgba(34, 197, 94, 0.8); border: 1.5px solid rgba(34, 197, 94, 1);"></div>
-          <span>Done</span>
+          <div class="w-4 h-4 rounded" style="background-color: rgba(20, 184, 166, 0.8); border: 1.5px solid rgba(20, 184, 166, 1);"></div>
+          <span>Closure</span>
         </div>
       </div>
     {/if}
@@ -655,9 +557,7 @@
       {#if viewMode === 'phases'}
         Phase Overview | Aktuelle Ansicht: {timeUnit === 'day' ? 'Tage' : timeUnit === 'week' ? 'Wochen' : 'Monate'}
       {:else if viewMode === 'tasks'}
-        Task Details | Tasks gruppiert nach Phase | Aktuelle Ansicht: {timeUnit === 'day' ? 'Tage' : timeUnit === 'week' ? 'Wochen' : 'Monate'}
-      {:else}
-        Combined View | Helle Balken = Phasen, Dunkle Balken = Tasks | Aktuelle Ansicht: {timeUnit === 'day' ? 'Tage' : timeUnit === 'week' ? 'Wochen' : 'Monate'}
+        Task Details | Tasks nummeriert und nach Phase farbcodiert | Aktuelle Ansicht: {timeUnit === 'day' ? 'Tage' : timeUnit === 'week' ? 'Wochen' : 'Monate'}
       {/if}
     </div>
   </div>

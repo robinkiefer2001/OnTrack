@@ -71,11 +71,8 @@
   $: if (initProject?.planingPhase[0]?.dueDate && initProject?.executionPhase[0]) {
     initProject.executionPhase[0].startDate = initProject.planingPhase[0].dueDate;
   }
-  $: if (initProject?.executionPhase[0]?.dueDate && initProject?.monitoringPhase[0]) {
-    initProject.monitoringPhase[0].startDate = initProject.executionPhase[0].dueDate;
-  }
-  $: if (initProject?.monitoringPhase[0]?.dueDate && initProject?.closurePhase[0]) {
-    initProject.closurePhase[0].startDate = initProject.monitoringPhase[0].dueDate;
+  $: if (initProject?.executionPhase[0]?.dueDate && initProject?.closurePhase[0]) {
+    initProject.closurePhase[0].startDate = initProject.executionPhase[0].dueDate;
   }
 
   function setTaskPhase(name: ProjectPhase["phaseName"]) {
@@ -87,7 +84,6 @@
       Initiation: initProject.initiationPhase[0]?.phaseid ?? null,
       Planing: initProject.planingPhase[0]?.phaseid ?? null,
       Execution: initProject.executionPhase[0]?.phaseid ?? null,
-      Monitoring: initProject.monitoringPhase[0]?.phaseid ?? null,
       Closure: initProject.closurePhase[0]?.phaseid ?? null,
     };
 
@@ -149,15 +145,6 @@
           dueDate: null,
         },
       ] as ProjectPhase[],
-      monitoringPhase: [
-        {
-          phaseid: projectId + 4,
-          projectID: projectId,
-          phaseName: "Monitoring",
-          startDate: null,
-          dueDate: null,
-        },
-      ] as ProjectPhase[],
       Tasks: [],
     };
   }
@@ -197,7 +184,6 @@
       Initiation: initProject.initiationPhase,
       Planing: initProject.planingPhase,
       Execution: initProject.executionPhase,
-      Monitoring: initProject.monitoringPhase,
       Closure: initProject.closurePhase,
     };
 
@@ -432,7 +418,6 @@
                     initiationPhase: p.initiationPhase,
                     planingPhase: p.planingPhase,
                     executionPhase: p.executionPhase,
-                    monitoringPhase: p.monitoringPhase,
                     closurePhase: p.closurePhase,
                   }
                 : null;
@@ -660,26 +645,6 @@
                 readonly
               />
             </label>
-            <label class="form-control w-full">
-              <div class="label">
-                <h3 class="text-xl font-bold mb-4">Monitoring</h3>
-              </div>
-              <p>Start Date</p>
-              <input
-                type="date"
-                class="input"
-                bind:value={initProject!.monitoringPhase[0].startDate}
-                readonly
-              />
-              <p>Due Date</p>
-              <input
-                type="date"
-                class="input"
-                bind:value={initProject!.monitoringPhase[0].dueDate}
-                min={toInputDate(initProject!.monitoringPhase[0].startDate) || undefined}
-                max={toInputDate(initProject!.dueDate) || undefined}
-              />
-            </label>
           </div>
         </div>
 
@@ -755,12 +720,6 @@
                       type="button"
                       on:click={() => setTaskPhase("Execution")}
                     >Execution</button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      on:click={() => setTaskPhase("Monitoring")}
-                    >Monitoring</button>
                   </li>
                   <li>
                     <button
@@ -952,7 +911,6 @@
                         initiation: initProject.initiationPhase,
                         planing: initProject.planingPhase,
                         execution: initProject.executionPhase,
-                        monitoring: initProject.monitoringPhase,
                         closure: initProject.closurePhase
                       } : null}
           />

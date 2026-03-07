@@ -8,7 +8,6 @@ export interface Project {
   initiationPhase: ProjectPhase[];  // nur noch als Array
   planingPhase: ProjectPhase[];
   executionPhase: ProjectPhase[];
-  monitoringPhase: ProjectPhase[];
   closurePhase: ProjectPhase[];
 
   customerName: string;
@@ -26,7 +25,7 @@ export interface ProjectPhase {
   projectID: number;
   startDate: Date | null;
   dueDate: Date | null;
-  phaseName: "Initiation" | "Planing" | "Execution" | "Monitoring" | "Closure";
+  phaseName: "Initiation" | "Planing" | "Execution" | "Closure";
 }
 
 export interface Task {
@@ -47,7 +46,6 @@ export type ProjectStatus =
   | "Initiation"
   | "Planning"
   | "Execution"
-  | "Monitoring"
   | "Closure"
   | "Closed"
   | "Cancelled";
