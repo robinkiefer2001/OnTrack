@@ -1,4 +1,10 @@
-import type { Customer, CustomerEmployee, Project, ProjectStatus } from "./project";
+import type {
+    Customer,
+    CustomerEmployee,
+    Project,
+    ProjectPhase,
+    ProjectStatus,
+} from "./project";
 import { writable } from "svelte/store";
 
 const firstNames = [
@@ -158,6 +164,28 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
     const startDate = new Date(2026, randomInt(0, 11), randomInt(1, 28));
     const dueDate = new Date(startDate);
     dueDate.setDate(dueDate.getDate() + randomInt(30, 240));
+    const projectID = 50000 + index;
+
+    const initiationStart = new Date(startDate);
+    const initiationDue = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const planingStart = new Date(initiationDue);
+    const planingDue = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const executionStart = new Date(planingDue);
+    const executionDue = new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000);
+    const closureStart = new Date(executionDue);
+
+    const buildPhase = (
+        phaseid: number,
+        phaseName: ProjectPhase["phaseName"],
+        phaseStartDate: Date,
+        phaseDueDate: Date,
+    ): ProjectPhase => ({
+        phaseid,
+        projectID,
+        phaseName,
+        startDate: phaseStartDate,
+        dueDate: phaseDueDate,
+    });
 
     return {
         title: `${randomFrom(projectTitles)} ${index + 1}`,
@@ -166,22 +194,50 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
         budget: randomInt(50000, 1500000),
         dueDate,
         startDate,
-        projectID: 50000 + index,
+        projectID,
         projectManager: `${manager.firstName} ${manager.lastName}`,
         projectstatus: randomFrom(statuses),
-        initiationPhase: [{ startDate, endDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000) }],
-        planingPhase: [{ startDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000), endDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000) }],
-        executionPhase: [{ startDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000), endDate: new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000) }],
-        closurePhase: [{ startDate: new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000), endDate: dueDate }],
+        initiationPhase: [
+            buildPhase(projectID * 10 + 1, "Initiation", initiationStart, initiationDue),
+        ],
+        planingPhase: [
+            buildPhase(projectID * 10 + 2, "Planing", planingStart, planingDue),
+        ],
+        executionPhase: [
+            buildPhase(projectID * 10 + 3, "Execution", executionStart, executionDue),
+        ],
+        closurePhase: [
+            buildPhase(projectID * 10 + 4, "Closure", closureStart, dueDate),
+        ],
         Tasks: Array.from({ length: randomInt(3, 10) }, (_, taskIndex) => {
+            const phaseNames: ProjectPhase["phaseName"][] = [
+                "Initiation",
+                "Planing",
+                "Execution",
+                "Closure",
+            ];
+            const projectPhase = randomFrom(phaseNames);
+            const phaseLookup: Record<ProjectPhase["phaseName"], number> = {
+                Initiation: projectID * 10 + 1,
+                Planing: projectID * 10 + 2,
+                Execution: projectID * 10 + 3,
+                Closure: projectID * 10 + 4,
+            };
+
+            const taskStartDate = new Date(startDate);
+            taskStartDate.setDate(taskStartDate.getDate() + randomInt(1, 90));
             const taskDueDate = new Date(startDate);
             taskDueDate.setDate(taskDueDate.getDate() + randomInt(7, 180));
+
             return {
-                taskID: 1000 + taskIndex,
+                taskID: projectID * 100 + taskIndex,
                 title: `Task ${taskIndex + 1}`,
+                startDate: taskStartDate,
                 dueDate: taskDueDate,
+                phaseId: phaseLookup[projectPhase],
+                projectPhase,
                 status: randomFrom(taskStatuses),
-                projectID: 50000 + index,
+                projectID,
                 description: `Description for task ${taskIndex + 1}`,
                 assignedTo: `${manager.firstName} ${manager.lastName}`,
                 notificationSent: false,

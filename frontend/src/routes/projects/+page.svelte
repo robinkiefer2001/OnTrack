@@ -11,6 +11,17 @@
     customerList,
     projectList,
   } from "$lib/models/mockupData";
+  import ProjectsTable from "$lib/components/projects/ProjectsTable.svelte";
+  import {
+    formatBudget,
+    dueDateLabel,
+  } from "$lib/features/projects/projectUtils";
+  import ProjectsToolbar from "$lib/components/projects/ProjectsToolbar.svelte";
+  import {
+    getPhaseRange,
+    toDateOrNull,
+    toInputDate,
+  } from "$lib/features/projects/projectUtils";
   import TimelineChart from "./TimelineChart.svelte";
 
   // State
@@ -20,6 +31,7 @@
   let showCustomerSelect = false;
   let selectedRow: number | null = null;
   let showForm = false;
+  let currentProjectView = false;
   let timelineChartRef: InstanceType<typeof TimelineChart> | null = null;
 
   // Task form state
@@ -37,6 +49,7 @@
   // Selected tasks for bulk actions
   let selectedTasks = new Set<number>();
   $: taskPhaseRange = getPhaseRange(
+    initProject,
     (newTask.projectPhase || "") as ProjectPhase["phaseName"] | "",
   );
 
@@ -65,14 +78,26 @@
   }
 
   // Synchronize phase dates: start date of next phase = due date of previous phase
-  $: if (initProject?.initiationPhase[0]?.dueDate && initProject?.planingPhase[0]) {
-    initProject.planingPhase[0].startDate = initProject.initiationPhase[0].dueDate;
+  $: if (
+    initProject?.initiationPhase[0]?.dueDate &&
+    initProject?.planingPhase[0]
+  ) {
+    initProject.planingPhase[0].startDate =
+      initProject.initiationPhase[0].dueDate;
   }
-  $: if (initProject?.planingPhase[0]?.dueDate && initProject?.executionPhase[0]) {
-    initProject.executionPhase[0].startDate = initProject.planingPhase[0].dueDate;
+  $: if (
+    initProject?.planingPhase[0]?.dueDate &&
+    initProject?.executionPhase[0]
+  ) {
+    initProject.executionPhase[0].startDate =
+      initProject.planingPhase[0].dueDate;
   }
-  $: if (initProject?.executionPhase[0]?.dueDate && initProject?.closurePhase[0]) {
-    initProject.closurePhase[0].startDate = initProject.executionPhase[0].dueDate;
+  $: if (
+    initProject?.executionPhase[0]?.dueDate &&
+    initProject?.closurePhase[0]
+  ) {
+    initProject.closurePhase[0].startDate =
+      initProject.executionPhase[0].dueDate;
   }
 
   function setTaskPhase(name: ProjectPhase["phaseName"]) {
@@ -89,7 +114,7 @@
 
     newTask.phaseid = map[name];
 
-    const { start, end } = getPhaseRange(name);
+    const { start, end } = getPhaseRange(initProject, name);
     newTask.startDate = start;
     newTask.dueDate = end;
   }
@@ -154,43 +179,9 @@
     return selectedCustomer;
   }
 
-  function toggleSelect(index: number): boolean {
-    const isSameRow = selectedRow === index;
-    selectedRow = isSameRow ? null : index;
-    return !isSameRow;
-  }
-
   function cancelNewProject() {
     initProject = null;
     showForm = false;
-  }
-
-  function toDateOrNull(value: Date | string | null): Date | null {
-    if (!value) return null;
-    if (value instanceof Date) return value;
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  function toInputDate(value: Date | string | null): string | null {
-    const date = toDateOrNull(value);
-    return date ? date.toISOString().split("T")[0] : null;
-  }
-
-  function getPhaseRange(phaseName: ProjectPhase["phaseName"] | "") {
-    if (!initProject || !phaseName) return { start: null, end: null };
-
-    const phaseMap: Record<ProjectPhase["phaseName"], ProjectPhase[] | undefined> = {
-      Initiation: initProject.initiationPhase,
-      Planing: initProject.planingPhase,
-      Execution: initProject.executionPhase,
-      Closure: initProject.closurePhase,
-    };
-
-    const phase = phaseMap[phaseName]?.[0];
-    const start = toInputDate(phase?.startDate ?? null);
-    const end = toInputDate(phase?.dueDate ?? null);
-    return { start, end };
   }
 
   function addTask() {
@@ -202,6 +193,7 @@
     if (!newTask.projectPhase || !taskStart || !taskEnd) return;
 
     const { start: phaseStartRaw, end: phaseEndRaw } = getPhaseRange(
+      initProject,
       newTask.projectPhase as ProjectPhase["phaseName"],
     );
     const phaseStart = toDateOrNull(phaseStartRaw);
@@ -268,16 +260,40 @@
     console.log(initProject);
   }
 
-  function formatBudget(value: number | null) {
-    if (value == null) return "-";
-    return new Intl.NumberFormat("de-CH", {
-      style: "currency",
-      currency: "CHF",
-      minimumFractionDigits: 2,
-    }).format(value);
+  function showCurrentProject() {
+    if (!selectedProject) return;
+
+    currentProjectView = true;
   }
 
-  function showCurrentProject() {}
+  function handleRowSelect(
+    event: CustomEvent<{ index: number; project: Project }>,
+  ) {
+    const {
+      detail: { index, project },
+    } = event;
+    const isSameRow = selectedRow === index;
+
+    selectedRow = isSameRow ? null : index;
+    selectedProject = isSameRow
+      ? null
+      : {
+          title: project.title,
+          customerID: project.customerID,
+          customerName: project.customerName,
+          budget: project.budget,
+          dueDate: project.dueDate,
+          startDate: project.startDate,
+          projectID: project.projectID,
+          projectManager: project.projectManager,
+          projectstatus: project.projectstatus as ProjectStatus,
+          Tasks: project.Tasks,
+          initiationPhase: project.initiationPhase,
+          planingPhase: project.planingPhase,
+          executionPhase: project.executionPhase,
+          closurePhase: project.closurePhase,
+        };
+  }
 
   function editTask(taskID: number) {
     if (!initProject) return;
@@ -334,116 +350,335 @@
   }
 </script>
 
-<!-- Top-Menü -->
-<ul
-  class="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-box gap-4 mb-4"
->
-  <li>
-    <button class="btn btn-neutral" on:click={newProject}>New Project</button>
-  </li>
-  {#if selectedProject == null}
-    <li>
-      <button class="btn btn-neutral" disabled on:click={printOutProjectState}>
-        Print Project State
-      </button>
-    </li>
-    <li>
-      <button class="btn btn-neutral" disabled>Modify Project</button>
-    </li>
-    <li>
-      <button class="btn" disabled>Show Current Project</button>
-    </li>
-  {:else}
-    <li>
-      <button class="btn" on:click={printOutProjectState}>
-        Print Project State
-      </button>
-    </li>
-    <li>
-      <button
-        class="btn"
-        on:click={() => {
-          /* modifyProject */
-        }}
-      >
-        Modify Project
-      </button>
-    </li>
-    <li>
-      <button class="btn" on:click={showCurrentProject}>
-        Show Current Project
-      </button>
-    </li>
-  {/if}
+<ProjectsToolbar
+  {selectedProject}
+  on:newProject={newProject}
+  on:printProjectState={printOutProjectState}
+  on:modifyProject={() => {
+    /* modifyProject */
+  }}
+  on:showCurrentProject={showCurrentProject}
+/>
 
-  <label class="input mt-4">
-    <input type="search" required placeholder="Search" />
-  </label>
-</ul>
+<ProjectsTable
+  projects={$projectList}
+  {selectedRow}
+  on:rowSelect={handleRowSelect}
+/>
 
-<!-- Projektliste (immer sichtbar) -->
-<div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2">
-  <div class="h-150">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Project Nr.</th>
-          <th>Customer</th>
-          <th>Project Manager</th>
-          <th>Budget</th>
-          <th>Status</th>
-          <th>Due Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each $projectList as p, index}
-          <tr
-            class={`cursor-pointer transition-colors ${
-              selectedRow === index ? "bg-gray-200" : "hover:bg-gray-100"
-            }`}
-            on:click={() => {
-              const isSelected = toggleSelect(index);
-              selectedProject = isSelected
-                ? {
-                    title: p.title,
-                    customerID: p.customerID,
-                    customerName: p.customerName,
-                    budget: p.budget,
-                    dueDate: p.dueDate,
-                    startDate: p.startDate,
-                    projectID: p.projectID,
-                    projectManager: p.projectManager,
-                    projectstatus: p.projectstatus as ProjectStatus,
-                    Tasks: p.Tasks,
-                    initiationPhase: p.initiationPhase,
-                    planingPhase: p.planingPhase,
-                    executionPhase: p.executionPhase,
-                    closurePhase: p.closurePhase,
-                  }
-                : null;
-            }}
+{#if currentProjectView}
+  <div class="fixed inset-0 z-50 bg-gray-50 overflow-y-auto">
+    <!-- Header -->
+    <div class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900">
+            {selectedProject?.title ?? "Project Details"}
+          </h1>
+          <p class="text-sm text-gray-500 mt-1">
+            {selectedProject?.customerName ?? ""}
+          </p>
+        </div>
+        <button
+          class="btn btn-circle btn-ghost"
+          on:click={() => (currentProjectView = false)}
+          aria-label="Close project view"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <td>{p.projectID}</td>
-            <td>{p.customerName}</td>
-            <td>{p.projectManager}</td>
-            <td>{formatBudget(p.budget)}</td>
-            <td>{p.projectstatus as ProjectStatus}</td>
-            <td>
-              {p.dueDate
-                ? p.dueDate.toLocaleDateString("de-CH", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })
-                : "-"}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <!-- Project Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500">Project Manager</p>
+              <p class="text-xl font-semibold text-gray-900 mt-1">
+                {selectedProject?.projectManager ?? "-"}
+              </p>
+            </div>
+            <div class="bg-blue-100 rounded-full p-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6 text-blue-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500">Budget</p>
+              <p class="text-xl font-semibold text-gray-900 mt-1">
+                {formatBudget(selectedProject?.budget ?? null)}
+              </p>
+            </div>
+            <div class="bg-green-100 rounded-full p-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6 text-green-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500">Start Date</p>
+              <p class="text-xl font-semibold text-gray-900 mt-1">
+                {dueDateLabel(selectedProject?.startDate ?? null)}
+              </p>
+            </div>
+            <div class="bg-purple-100 rounded-full p-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6 text-purple-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-500">Due Date</p>
+              <p class="text-xl font-semibold text-gray-900 mt-1">
+                {dueDateLabel(selectedProject?.dueDate ?? null)}
+              </p>
+            </div>
+            <div class="bg-orange-100 rounded-full p-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6 text-orange-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Phases -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Project Phases</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="border-l-4 border-blue-500 pl-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Initiation</h3>
+            <div class="space-y-1">
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">Start:</span>
+                {dueDateLabel(selectedProject?.initiationPhase[0]?.startDate ?? null)}
+              </p>
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">End:</span>
+                {dueDateLabel(selectedProject?.initiationPhase[0]?.dueDate ?? null)}
+              </p>
+            </div>
+          </div>
+
+          <div class="border-l-4 border-green-500 pl-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Planning</h3>
+            <div class="space-y-1">
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">Start:</span>
+                {dueDateLabel(selectedProject?.planingPhase[0]?.startDate ?? null)}
+              </p>
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">End:</span>
+                {dueDateLabel(selectedProject?.planingPhase[0]?.dueDate ?? null)}
+              </p>
+            </div>
+          </div>
+
+          <div class="border-l-4 border-yellow-500 pl-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Execution</h3>
+            <div class="space-y-1">
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">Start:</span>
+                {dueDateLabel(selectedProject?.executionPhase[0]?.startDate ?? null)}
+              </p>
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">End:</span>
+                {dueDateLabel(selectedProject?.executionPhase[0]?.dueDate ?? null)}
+              </p>
+            </div>
+          </div>
+
+          <div class="border-l-4 border-purple-500 pl-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Closure</h3>
+            <div class="space-y-1">
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">Start:</span>
+                {dueDateLabel(selectedProject?.closurePhase[0]?.startDate ?? null)}
+              </p>
+              <p class="text-sm text-gray-600">
+                <span class="font-medium">End:</span>
+                {dueDateLabel(selectedProject?.closurePhase[0]?.dueDate ?? null)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline Chart -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Project Timeline</h2>
+        <TimelineChart
+          start={selectedProject?.startDate}
+          end={selectedProject?.dueDate}
+          tasks={selectedProject?.Tasks || []}
+          phases={selectedProject
+            ? {
+                initiation: selectedProject.initiationPhase,
+                planing: selectedProject.planingPhase,
+                execution: selectedProject.executionPhase,
+                closure: selectedProject.closurePhase,
+              }
+            : null}
+        />
+      </div>
+
+      <!-- Tasks List -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">
+            Tasks ({selectedProject?.Tasks.length || 0})
+          </h2>
+        </div>
+
+        {#if selectedProject && selectedProject.Tasks.length > 0}
+          <div class="overflow-x-auto">
+            <table class="table w-full">
+              <thead>
+                <tr class="border-b border-gray-200">
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Task</th>
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Description</th>
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Assigned To</th>
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Phase</th>
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Start Date</th>
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Due Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each selectedProject.Tasks as task}
+                  <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-3 px-4 font-medium text-gray-900">{task.title}</td>
+                    <td class="py-3 px-4 text-gray-600 max-w-xs truncate">
+                      {task.description || "-"}
+                    </td>
+                    <td class="py-3 px-4 text-gray-600">{task.assignedTo || "-"}</td>
+                    <td class="py-3 px-4">
+                      <span
+                        class="badge"
+                        class:badge-neutral={task.status === "Pending"}
+                        class:badge-success={task.status === "Done"}
+                        class:badge-warning={task.status === "In Progress"}
+                        class:badge-info={task.status === "To Do"}
+                      >
+                        {task.status}
+                      </span>
+                    </td>
+                    <td class="py-3 px-4">
+                      <span class="badge badge-outline">
+                        {task.projectPhase || "-"}
+                      </span>
+                    </td>
+                    <td class="py-3 px-4 text-gray-600">
+                      {task.startDate
+                        ? new Date(task.startDate).toLocaleDateString("de-CH")
+                        : "-"}
+                    </td>
+                    <td class="py-3 px-4 text-gray-600">
+                      {task.dueDate
+                        ? new Date(task.dueDate).toLocaleDateString("de-CH")
+                        : "-"}
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else}
+          <div class="text-center py-12">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-16 w-16 mx-auto text-gray-300 mb-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+              />
+            </svg>
+            <p class="text-gray-500 text-lg">No tasks available for this project</p>
+          </div>
+        {/if}
+      </div>
+    </div>
   </div>
-</div>
+{/if}
 
 {#if showForm}
   <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -582,7 +817,8 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.initiationPhase[0].dueDate}
-                min={toInputDate(initProject!.initiationPhase[0].startDate) || undefined}
+                min={toInputDate(initProject!.initiationPhase[0].startDate) ||
+                  undefined}
                 max={toInputDate(initProject!.dueDate) || undefined}
               />
             </label>
@@ -602,7 +838,8 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.planingPhase[0].dueDate}
-                min={toInputDate(initProject!.planingPhase[0].startDate) || undefined}
+                min={toInputDate(initProject!.planingPhase[0].startDate) ||
+                  undefined}
                 max={toInputDate(initProject!.dueDate) || undefined}
               />
             </label>
@@ -622,7 +859,8 @@
                 type="date"
                 class="input"
                 bind:value={initProject!.executionPhase[0].dueDate}
-                min={toInputDate(initProject!.executionPhase[0].startDate) || undefined}
+                min={toInputDate(initProject!.executionPhase[0].startDate) ||
+                  undefined}
                 max={toInputDate(initProject!.dueDate) || undefined}
               />
             </label>
@@ -707,31 +945,35 @@
                     <button
                       type="button"
                       on:click={() => setTaskPhase("Initiation")}
-                    >Initiation</button>
+                      >Initiation</button
+                    >
                   </li>
                   <li>
                     <button
                       type="button"
-                      on:click={() => setTaskPhase("Planing")}
-                    >Planning</button>
+                      on:click={() => setTaskPhase("Planing")}>Planning</button
+                    >
                   </li>
                   <li>
                     <button
                       type="button"
                       on:click={() => setTaskPhase("Execution")}
-                    >Execution</button>
+                      >Execution</button
+                    >
                   </li>
                   <li>
                     <button
                       type="button"
-                      on:click={() => setTaskPhase("Closure")}
-                    >Closure</button>
+                      on:click={() => setTaskPhase("Closure")}>Closure</button
+                    >
                   </li>
                 </ul>
               </div>
               {#if newTask.projectPhase}
                 <p class="text-sm mt-2 text-gray-600">
-                  Selected: <span class="font-semibold">{newTask.projectPhase}</span>
+                  Selected: <span class="font-semibold"
+                    >{newTask.projectPhase}</span
+                  >
                 </p>
               {/if}
             </div>
@@ -906,13 +1148,15 @@
             bind:this={timelineChartRef}
             start={initProject?.startDate}
             end={initProject?.dueDate}
-                      tasks={initProject?.Tasks || []}
-                      phases={initProject ? {
-                        initiation: initProject.initiationPhase,
-                        planing: initProject.planingPhase,
-                        execution: initProject.executionPhase,
-                        closure: initProject.closurePhase
-                      } : null}
+            tasks={initProject?.Tasks || []}
+            phases={initProject
+              ? {
+                  initiation: initProject.initiationPhase,
+                  planing: initProject.planingPhase,
+                  execution: initProject.executionPhase,
+                  closure: initProject.closurePhase,
+                }
+              : null}
           />
         </div>
 
