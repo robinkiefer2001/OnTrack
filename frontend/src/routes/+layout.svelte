@@ -3,7 +3,15 @@
   import "../app.css";
   import { Chart } from 'chart.js';
   import { onMount } from 'svelte';
+  import { goto } from "$app/navigation";
+  import { t } from "$lib/language";
   let { children } = $props();
+  let navSearch = $state("");
+
+  function runGlobalSearch() {
+    const query = navSearch.trim();
+    goto(query ? `/projects?q=${encodeURIComponent(query)}` : "/projects");
+  }
 </script>
 
 <svelte:head>
@@ -20,8 +28,12 @@
   <div class="flex gap-2">
     <input
       type="text"
-      placeholder="Search"
+      placeholder={$t.common.search}
       class="input input-bordered w-24 md:w-auto"
+      bind:value={navSearch}
+      onkeydown={(e) => {
+        if (e.key === "Enter") runGlobalSearch();
+      }}
     />
   </div>
 </div>
@@ -35,13 +47,13 @@
           <span class="text-3xl items-center ml-1.5">MM</span>
         </div>
       </li>
-      <li><a href="./">Home</a></li>
-      <li><a href="projects">Projects</a></li>
-      <li><a href="customers">Customers</a></li>
-      <li><a href="employees">Employees</a></li>
-      <li><a href="tasks">Tasks</a></li>
-      <li><a href="myprofile">My Profile</a></li>
-      <li><a href="settings">Settings</a></li>
+      <li><a href="./">{$t.nav.home}</a></li>
+      <li><a href="projects">{$t.nav.projects}</a></li>
+      <li><a href="customers">{$t.nav.customers}</a></li>
+      <li><a href="employees">{$t.nav.employees}</a></li>
+      <li><a href="tasks">{$t.nav.tasks}</a></li>
+      <li><a href="myprofile">{$t.nav.myProfile}</a></li>
+      <li><a href="settings">{$t.nav.settings}</a></li>
     </ul>
   </div>
 

@@ -2,6 +2,7 @@
   import type { Project, ProjectStatus } from "$lib/models/project";
   import { createEventDispatcher } from "svelte";
   import { formatBudget, dueDateLabel } from "$lib/features/projects/projectUtils";
+  import { t } from "$lib/language";
 
   export let projects: Project[] = [];
   export let selectedRow: number | null = null;
@@ -9,6 +10,15 @@
   const dispatch = createEventDispatcher<{
     rowSelect: { index: number; project: Project };
   }>();
+
+  function projectStatusLabel(status: ProjectStatus) {
+    if (status === "Initiation") return $t.projectStatus.initiation;
+    if (status === "Planning") return $t.projectStatus.planning;
+    if (status === "Execution") return $t.projectStatus.execution;
+    if (status === "Closure") return $t.projectStatus.closure;
+    if (status === "Closed") return $t.projectStatus.closed;
+    return $t.projectStatus.cancelled;
+  }
 
 
 </script>
@@ -18,12 +28,12 @@
     <table class="table">
       <thead>
         <tr>
-          <th>Project Nr.</th>
-          <th>Customer</th>
-          <th>Project Manager</th>
-          <th>Budget</th>
-          <th>Status</th>
-          <th>Due Date</th>
+          <th>{$t.projects.projectNumber}</th>
+          <th>{$t.projects.customer}</th>
+          <th>{$t.projects.projectManager}</th>
+          <th>{$t.projects.budget}</th>
+          <th>{$t.common.status}</th>
+          <th>{$t.projects.dueDate}</th>
         </tr>
       </thead>
       <tbody>
@@ -38,7 +48,7 @@
             <td>{p.customerName}</td>
             <td>{p.projectManager}</td>
             <td>{formatBudget(p.budget)}</td>
-            <td>{p.projectstatus as ProjectStatus}</td>
+            <td>{projectStatusLabel(p.projectstatus as ProjectStatus)}</td>
             <td>{dueDateLabel(p.dueDate)}</td>
           </tr>
         {/each}

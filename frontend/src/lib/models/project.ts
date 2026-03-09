@@ -13,7 +13,7 @@ export interface Project {
   customerName: string;
   dueDate: Date | null;
   startDate: Date | null;
-  budget: number | null;
+  budget: number | null; // CHF - Obergrenze für alle Kosten
   projectManager: string;
   projectstatus: ProjectStatus;
   Tasks: Task[];
@@ -40,6 +40,34 @@ export interface Task {
   dueDate: Date | null;
   startDate: Date | null;
   notificationSent: boolean;
+  estimatedHours: number | null; // Stunden für diesen Task (optional)
+  hourlyRateType: string; // z.B. "SystemEngineer", "ProjectManager"
+  subtasks: Subtask[];
+}
+
+export interface Subtask {
+  subtaskID: number;
+  taskID: number;
+  title: string;
+  description: string;
+  status: "To Do" | "In Progress" | "Done" | "Pending";
+  assignedTo: string;
+  dueDate: Date | null;
+  startDate: Date | null;
+  estimatedHours: number | null; // Stunden für diese Subtask (optional)
+  hourlyRateType: string;
+}
+
+export interface HourlyRate {
+  rateID: number;
+  rateType: string; // z.B. "SystemEngineer", "ProjectManager", "Developer"
+  hourlyRate: number; // CHF pro Stunde
+  isDefault: boolean;
+}
+
+export interface ProjectSettings {
+  projectID: number;
+  hourlyRates: HourlyRate[];
 }
 
 export type ProjectStatus =

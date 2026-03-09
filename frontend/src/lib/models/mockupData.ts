@@ -229,6 +229,9 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
             const taskDueDate = new Date(startDate);
             taskDueDate.setDate(taskDueDate.getDate() + randomInt(7, 180));
 
+            const hourlyRateTypes = ["SystemEngineer", "ProjectManager", "Developer", "QA", "BusinesAnalyst"];
+            const taskHours = randomInt(8, 80);
+
             return {
                 taskID: projectID * 100 + taskIndex,
                 title: `Task ${taskIndex + 1}`,
@@ -241,6 +244,27 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
                 description: `Description for task ${taskIndex + 1}`,
                 assignedTo: `${manager.firstName} ${manager.lastName}`,
                 notificationSent: false,
+                estimatedHours: taskHours,
+                hourlyRateType: randomFrom(hourlyRateTypes),
+                subtasks: Array.from({ length: randomInt(0, 3) }, (_, subtaskIndex) => {
+                    const subtaskStartDate = new Date(taskStartDate);
+                    subtaskStartDate.setDate(subtaskStartDate.getDate() + randomInt(0, 5));
+                    const subtaskDueDate = new Date(taskDueDate);
+                    subtaskDueDate.setDate(subtaskDueDate.getDate() - randomInt(1, 5));
+
+                    return {
+                        subtaskID: projectID * 1000 + taskIndex * 10 + subtaskIndex,
+                        taskID: projectID * 100 + taskIndex,
+                        title: `Subtask ${subtaskIndex + 1}`,
+                        description: `Description for subtask ${subtaskIndex + 1}`,
+                        status: randomFrom(taskStatuses),
+                        assignedTo: randomFrom(managers).firstName,
+                        startDate: Math.random() > 0.3 ? subtaskStartDate : null,
+                        dueDate: Math.random() > 0.3 ? subtaskDueDate : null,
+                        estimatedHours: randomInt(4, 40),
+                        hourlyRateType: randomFrom(hourlyRateTypes),
+                    };
+                }),
             };
         }),
     };

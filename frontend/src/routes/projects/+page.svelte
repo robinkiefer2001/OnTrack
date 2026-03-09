@@ -5,13 +5,18 @@
     Customer,
     ProjectPhase,
     Task,
+    HourlyRate,
   } from "$lib/models/project";
   import {
     addToListProject,
     customerList,
     projectList,
   } from "$lib/models/mockupData";
+  import { loadHourlyRates } from "$lib/models/hourlyRates";
   import ProjectsTable from "$lib/components/projects/ProjectsTable.svelte";
+  import TaskRow from "$lib/components/projects/TaskRow.svelte";
+  import PhaseBudgetStats from "$lib/components/projects/PhaseBudgetStats.svelte";
+  import ProjectSummary from "$lib/components/projects/ProjectSummary.svelte";
   import {
     formatBudget,
     dueDateLabel,
@@ -19,10 +24,13 @@
   import ProjectsToolbar from "$lib/components/projects/ProjectsToolbar.svelte";
   import {
     getPhaseRange,
+    getTaskCost,
     toDateOrNull,
     toInputDate,
   } from "$lib/features/projects/projectUtils";
+  import { page } from "$app/stores";
   import TimelineChart from "./TimelineChart.svelte";
+  import { t } from "$lib/language";
 
   // State
   let initProject: Project | null = null;
@@ -33,6 +41,16 @@
   let showForm = false;
   let currentProjectView = false;
   let timelineChartRef: InstanceType<typeof TimelineChart> | null = null;
+  let hourlyRates: HourlyRate[] = loadHourlyRates();
+  let projectFullTextSearch = "";
+  let projectManagerFilter = "";
+  let customerFilter = "";
+  let customerSearchText = "";
+  let lastQueryFromUrl = "";
+  let projectManagers: string[] = [];
+  let customers: string[] = [];
+  let filteredProjects: Project[] = [];
+  let filteredCustomerList: Customer[] = [];
 
   // Task form state
   let newTask = {
@@ -44,10 +62,92 @@
     projectPhase: "",
     dueDate: null as Date | string | null,
     startDate: null as Date | string | null,
+    estimatedHours: null as number | null,
+    hourlyRateType: "SystemEngineer",
   };
+
+  // Subtask form state
+  let newSubtask = {
+    title: "",
+    description: "",
+    status: "Pending",
+    assignedTo: "",
+    dueDate: null as Date | string | null,
+    startDate: null as Date | string | null,
+    estimatedHours: null as number | null,
+    hourlyRateType: "SystemEngineer",
+  };
+
+  let currentTaskSubtasks: Array<{
+    subtaskID: number;
+    taskID: number;
+    title: string;
+    description: string;
+    status: "To Do" | "In Progress" | "Done" | "Pending";
+    assignedTo: string;
+    startDate: Date | null;
+    dueDate: Date | null;
+    estimatedHours: number | null;
+    hourlyRateType: string;
+  }> = [];
 
   // Selected tasks for bulk actions
   let selectedTasks = new Set<number>();
+
+  $: projectManagers = Array.from(
+    new Set(
+      $projectList
+        .map((p) => (p.projectManager || "").trim())
+        .filter((v) => v.length > 0),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+
+  $: customers = Array.from(
+    new Set(
+      $projectList
+        .map((p) => (p.customerName || "").trim())
+        .filter((v) => v.length > 0),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+
+  $: filteredProjects = $projectList.filter((p) => {
+    const fullText = projectFullTextSearch.trim().toLowerCase();
+    const matchesProjectManager = !projectManagerFilter || p.projectManager === projectManagerFilter;
+    const matchesCustomer = !customerFilter || p.customerName === customerFilter;
+
+    if (!matchesProjectManager || !matchesCustomer) return false;
+    if (!fullText) return true;
+
+    const haystack = [
+      p.title,
+      p.customerName,
+      p.projectManager,
+      String(p.projectID || ""),
+      p.projectstatus,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(fullText);
+  });
+
+  $: {
+    const q = ($page.url.searchParams.get("q") || "").trim();
+    if (q !== lastQueryFromUrl) {
+      projectFullTextSearch = q;
+      lastQueryFromUrl = q;
+    }
+  }
+
+  $: filteredCustomerList = customerList.filter((c) => {
+    const q = customerSearchText.trim().toLowerCase();
+    if (!q) return true;
+    return [c.companyName, c.contactName, c.email, c.phone]
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  });
+
   $: taskPhaseRange = getPhaseRange(
     initProject,
     (newTask.projectPhase || "") as ProjectPhase["phaseName"] | "",
@@ -176,7 +276,15 @@
 
   function selectCustomer() {
     showCustomerSelect = true;
+    customerSearchText = "";
     return selectedCustomer;
+  }
+
+  function getAssignedBudget(project: Project): number {
+    return (project.Tasks || []).reduce(
+      (sum, task) => sum + getTaskCost(task, hourlyRates),
+      0,
+    );
   }
 
   function cancelNewProject() {
@@ -215,7 +323,18 @@
       dueDate: taskEnd,
       startDate: taskStart,
       notificationSent: false,
+      estimatedHours: newTask.estimatedHours,
+      hourlyRateType: newTask.hourlyRateType,
+      subtasks: currentTaskSubtasks,
     };
+
+    if (initProject.budget && initProject.budget > 0) {
+      const nextAssignedBudget = getAssignedBudget(initProject) + getTaskCost(task, hourlyRates);
+      if (nextAssignedBudget > initProject.budget) {
+        alert($t.messages.budgetExceeded);
+        return;
+      }
+    }
 
     initProject.Tasks = [...initProject.Tasks, task];
 
@@ -228,12 +347,81 @@
       startDate: null,
       phaseid: null,
       projectPhase: "",
+      estimatedHours: null,
+      hourlyRateType: "SystemEngineer",
+    };
+
+    currentTaskSubtasks = [];
+    newSubtask = {
+      title: "",
+      description: "",
+      status: "Pending",
+      assignedTo: "",
+      dueDate: null,
+      startDate: null,
+      estimatedHours: null,
+      hourlyRateType: "SystemEngineer",
     };
   }
 
   function removeTask(taskID: number) {
     if (!initProject) return;
     initProject.Tasks = initProject.Tasks.filter((t) => t.taskID !== taskID);
+  }
+
+  function addSubtask() {
+    if (!newSubtask.title.trim()) return;
+
+    const subtaskStart = toDateOrNull(newSubtask.startDate);
+    const subtaskEnd = toDateOrNull(newSubtask.dueDate);
+    const taskStart = toDateOrNull(newTask.startDate);
+    const taskEnd = toDateOrNull(newTask.dueDate);
+
+    // Validierung: Wenn Daten angegeben, müssen sie innerhalb der Task-Dauer sein
+    if (subtaskStart && subtaskEnd) {
+      if (subtaskStart > subtaskEnd) return;
+
+      if (taskStart && subtaskStart < taskStart) {
+        alert($t.messages.subtaskDateBeforeTask);
+        return;
+      }
+      if (taskEnd && subtaskEnd > taskEnd) {
+        alert($t.messages.subtaskDateAfterTask);
+        return;
+      }
+    }
+
+    const subtask = {
+      subtaskID: Date.now() + Math.random(),
+      taskID: 0, // Will be set when task is created
+      title: newSubtask.title,
+      description: newSubtask.description,
+      status: newSubtask.status as "Pending",
+      assignedTo: newSubtask.assignedTo,
+      dueDate: subtaskEnd,
+      startDate: subtaskStart,
+      estimatedHours: newSubtask.estimatedHours,
+      hourlyRateType: newSubtask.hourlyRateType,
+    };
+
+    currentTaskSubtasks = [...currentTaskSubtasks, subtask];
+
+    newSubtask = {
+      title: "",
+      description: "",
+      status: "Pending",
+      assignedTo: "",
+      dueDate: null,
+      startDate: null,
+      estimatedHours: null,
+      hourlyRateType: "SystemEngineer",
+    };
+  }
+
+  function removeSubtask(subtaskID: number | string) {
+    currentTaskSubtasks = currentTaskSubtasks.filter(
+      (st) => st.subtaskID !== subtaskID,
+    );
   }
 
   function submitNewProject() {
@@ -250,6 +438,14 @@
       startDate: toDateOrNull(initProject.startDate as Date | string | null),
       dueDate: toDateOrNull(initProject.dueDate as Date | string | null),
     };
+
+    if (normalizedProject.budget && normalizedProject.budget > 0) {
+      const assignedBudget = getAssignedBudget(normalizedProject);
+      if (assignedBudget > normalizedProject.budget) {
+        alert($t.messages.budgetExceeded);
+        return;
+      }
+    }
 
     showForm = false;
     addToListProject(normalizedProject);
@@ -313,7 +509,12 @@
       startDate: task.startDate
         ? task.startDate.toISOString().split("T")[0]
         : null,
+      estimatedHours: task.estimatedHours,
+      hourlyRateType: task.hourlyRateType,
     };
+
+    // Load subtasks
+    currentTaskSubtasks = task.subtasks || [];
 
     // Remove the task from the list (it will be re-added when user clicks "Add Task")
     removeTask(taskID);
@@ -352,6 +553,11 @@
 
 <ProjectsToolbar
   {selectedProject}
+  bind:fullTextSearch={projectFullTextSearch}
+  bind:projectManagerFilter={projectManagerFilter}
+  bind:customerFilter={customerFilter}
+  {projectManagers}
+  {customers}
   on:newProject={newProject}
   on:printProjectState={printOutProjectState}
   on:modifyProject={() => {
@@ -361,7 +567,7 @@
 />
 
 <ProjectsTable
-  projects={$projectList}
+  projects={filteredProjects}
   {selectedRow}
   on:rowSelect={handleRowSelect}
 />
@@ -370,7 +576,9 @@
   <div class="fixed inset-0 z-50 bg-gray-50 overflow-y-auto">
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div
+        class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between"
+      >
         <div>
           <h1 class="text-3xl font-bold text-gray-900">
             {selectedProject?.title ?? "Project Details"}
@@ -409,7 +617,7 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium text-gray-500">Project Manager</p>
+              <p class="text-sm font-medium text-gray-500">{$t.projects.projectManager}</p>
               <p class="text-xl font-semibold text-gray-900 mt-1">
                 {selectedProject?.projectManager ?? "-"}
               </p>
@@ -436,7 +644,7 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium text-gray-500">Budget</p>
+              <p class="text-sm font-medium text-gray-500">{$t.projects.budget}</p>
               <p class="text-xl font-semibold text-gray-900 mt-1">
                 {formatBudget(selectedProject?.budget ?? null)}
               </p>
@@ -463,7 +671,7 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium text-gray-500">Start Date</p>
+              <p class="text-sm font-medium text-gray-500">{$t.projects.startDate}</p>
               <p class="text-xl font-semibold text-gray-900 mt-1">
                 {dueDateLabel(selectedProject?.startDate ?? null)}
               </p>
@@ -490,7 +698,7 @@
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-medium text-gray-500">Due Date</p>
+              <p class="text-sm font-medium text-gray-500">{$t.projects.dueDate}</p>
               <p class="text-xl font-semibold text-gray-900 mt-1">
                 {dueDateLabel(selectedProject?.dueDate ?? null)}
               </p>
@@ -516,70 +724,100 @@
       </div>
 
       <!-- Project Phases -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6">Project Phases</h2>
+      <div
+        class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8"
+      >
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">{$t.projects.projectPhases}</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div class="border-l-4 border-blue-500 pl-4">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Initiation</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">{$t.projects.initiation}</h3>
             <div class="space-y-1">
               <p class="text-sm text-gray-600">
-                <span class="font-medium">Start:</span>
-                {dueDateLabel(selectedProject?.initiationPhase[0]?.startDate ?? null)}
+                <span class="font-medium">{$t.projects.start}:</span>
+                {dueDateLabel(
+                  selectedProject?.initiationPhase[0]?.startDate ?? null,
+                )}
               </p>
               <p class="text-sm text-gray-600">
-                <span class="font-medium">End:</span>
-                {dueDateLabel(selectedProject?.initiationPhase[0]?.dueDate ?? null)}
+                <span class="font-medium">{$t.projects.end}:</span>
+                {dueDateLabel(
+                  selectedProject?.initiationPhase[0]?.dueDate ?? null,
+                )}
               </p>
             </div>
           </div>
 
           <div class="border-l-4 border-green-500 pl-4">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Planning</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">{$t.projects.planning}</h3>
             <div class="space-y-1">
               <p class="text-sm text-gray-600">
-                <span class="font-medium">Start:</span>
-                {dueDateLabel(selectedProject?.planingPhase[0]?.startDate ?? null)}
+                <span class="font-medium">{$t.projects.start}:</span>
+                {dueDateLabel(
+                  selectedProject?.planingPhase[0]?.startDate ?? null,
+                )}
               </p>
               <p class="text-sm text-gray-600">
-                <span class="font-medium">End:</span>
-                {dueDateLabel(selectedProject?.planingPhase[0]?.dueDate ?? null)}
+                <span class="font-medium">{$t.projects.end}:</span>
+                {dueDateLabel(
+                  selectedProject?.planingPhase[0]?.dueDate ?? null,
+                )}
               </p>
             </div>
           </div>
 
           <div class="border-l-4 border-yellow-500 pl-4">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Execution</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">{$t.projects.execution}</h3>
             <div class="space-y-1">
               <p class="text-sm text-gray-600">
-                <span class="font-medium">Start:</span>
-                {dueDateLabel(selectedProject?.executionPhase[0]?.startDate ?? null)}
+                <span class="font-medium">{$t.projects.start}:</span>
+                {dueDateLabel(
+                  selectedProject?.executionPhase[0]?.startDate ?? null,
+                )}
               </p>
               <p class="text-sm text-gray-600">
-                <span class="font-medium">End:</span>
-                {dueDateLabel(selectedProject?.executionPhase[0]?.dueDate ?? null)}
+                <span class="font-medium">{$t.projects.end}:</span>
+                {dueDateLabel(
+                  selectedProject?.executionPhase[0]?.dueDate ?? null,
+                )}
               </p>
             </div>
           </div>
 
           <div class="border-l-4 border-purple-500 pl-4">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">Closure</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">{$t.projects.closure}</h3>
             <div class="space-y-1">
               <p class="text-sm text-gray-600">
-                <span class="font-medium">Start:</span>
-                {dueDateLabel(selectedProject?.closurePhase[0]?.startDate ?? null)}
+                <span class="font-medium">{$t.projects.start}:</span>
+                {dueDateLabel(
+                  selectedProject?.closurePhase[0]?.startDate ?? null,
+                )}
               </p>
               <p class="text-sm text-gray-600">
-                <span class="font-medium">End:</span>
-                {dueDateLabel(selectedProject?.closurePhase[0]?.dueDate ?? null)}
+                <span class="font-medium">{$t.projects.end}:</span>
+                {dueDateLabel(
+                  selectedProject?.closurePhase[0]?.dueDate ?? null,
+                )}
               </p>
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Project Hours & Cost Summary -->
+      {#if selectedProject}
+        <ProjectSummary project={selectedProject} rates={hourlyRates} />
+      {/if}
+
+      <!-- Phase Budget Stats -->
+      {#if selectedProject}
+        <PhaseBudgetStats project={selectedProject} rates={hourlyRates} />
+      {/if}
+
       <!-- Timeline Chart -->
-      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6">Project Timeline</h2>
+      <div
+        class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8"
+      >
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">{$t.projects.projectTimeline}</h2>
         <TimelineChart
           start={selectedProject?.startDate}
           end={selectedProject?.dueDate}
@@ -599,7 +837,7 @@
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-2xl font-bold text-gray-900">
-            Tasks ({selectedProject?.Tasks.length || 0})
+            {$t.projects.tasks} ({selectedProject?.Tasks.length || 0})
           </h2>
         </div>
 
@@ -608,50 +846,42 @@
             <table class="table w-full">
               <thead>
                 <tr class="border-b border-gray-200">
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Task</th>
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Description</th>
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Assigned To</th>
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Phase</th>
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Start Date</th>
-                  <th class="text-left py-3 px-4 font-semibold text-gray-700">Due Date</th>
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.projects.taskName}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.common.description}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.projects.assignedTo}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.common.status}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.projects.phase}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.projects.startDate}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.projects.dueDate}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.common.hours}</th
+                  >
+                  <th class="text-left py-3 px-4 font-semibold text-gray-700"
+                    >{$t.common.cost}</th
+                  >
                 </tr>
               </thead>
               <tbody>
                 {#each selectedProject.Tasks as task}
-                  <tr class="border-b border-gray-100 hover:bg-gray-50">
-                    <td class="py-3 px-4 font-medium text-gray-900">{task.title}</td>
-                    <td class="py-3 px-4 text-gray-600 max-w-xs truncate">
-                      {task.description || "-"}
-                    </td>
-                    <td class="py-3 px-4 text-gray-600">{task.assignedTo || "-"}</td>
-                    <td class="py-3 px-4">
-                      <span
-                        class="badge"
-                        class:badge-neutral={task.status === "Pending"}
-                        class:badge-success={task.status === "Done"}
-                        class:badge-warning={task.status === "In Progress"}
-                        class:badge-info={task.status === "To Do"}
-                      >
-                        {task.status}
-                      </span>
-                    </td>
-                    <td class="py-3 px-4">
-                      <span class="badge badge-outline">
-                        {task.projectPhase || "-"}
-                      </span>
-                    </td>
-                    <td class="py-3 px-4 text-gray-600">
-                      {task.startDate
-                        ? new Date(task.startDate).toLocaleDateString("de-CH")
-                        : "-"}
-                    </td>
-                    <td class="py-3 px-4 text-gray-600">
-                      {task.dueDate
-                        ? new Date(task.dueDate).toLocaleDateString("de-CH")
-                        : "-"}
-                    </td>
-                  </tr>
+                  <TaskRow
+                    {task}
+                    rates={hourlyRates}
+                    projectBudget={selectedProject.budget}
+                  />
                 {/each}
               </tbody>
             </table>
@@ -672,7 +902,9 @@
                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
               />
             </svg>
-            <p class="text-gray-500 text-lg">No tasks available for this project</p>
+            <p class="text-gray-500 text-lg">
+              {$t.projects.noTasks}
+            </p>
           </div>
         {/if}
       </div>
@@ -690,32 +922,32 @@
           type="radio"
           name="my_tabs_1"
           class="tab"
-          aria-label="Project Details"
+          aria-label={$t.projects.projectDetails}
           checked={true}
         />
         <div class="tab-content bg-base-100 border-base-300 p-6">
           <div class="grid grid-cols-3 gap-6 mb-4">
             <div class="flex-1">
-              <p class="text-2xl font-bold mb-4">Project Name</p>
+              <p class="text-2xl font-bold mb-4">{$t.projects.projectName}</p>
               <input
                 type="text"
-                placeholder="Type here"
+                placeholder={$t.projects.typeHere}
                 class="input"
                 bind:value={initProject!.title}
               />
             </div>
             <div class="flex-1">
-              <p class="text-2xl font-bold mb-4">Customer</p>
+              <p class="text-2xl font-bold mb-4">{$t.projects.customer}</p>
               <input
                 type="text"
-                placeholder="Type here"
+                placeholder={$t.projects.typeHere}
                 class="input"
                 bind:value={initProject!.customerName}
                 readonly
                 required
               />
               <button class="btn btn-neutral" on:click={selectCustomer}>
-                Select Customer
+                {$t.projects.selectCustomer}
               </button>
               {#if showCustomerSelect}
                 <div
@@ -724,11 +956,12 @@
                   <div class="bg-white p-4 rounded-lg shadow-xl w-80">
                     <input
                       type="text"
-                      placeholder="Search Customer"
+                      placeholder={$t.projects.searchCustomer}
                       class="input w-full mb-4"
+                      bind:value={customerSearchText}
                     />
                     <ul class="menu bg-base-100 w-full">
-                      {#each customerList as c}
+                      {#each filteredCustomerList as c}
                         <li>
                           <button
                             on:click={() => {
@@ -748,44 +981,46 @@
                         showCustomerSelect = false;
                       }}
                     >
-                      Close</button
+                      {$t.common.close}</button
                     >
                   </div>
                 </div>
               {/if}
             </div>
             <div class="flex-1">
-              <h3 class="text-xl font-bold mb-4">Project Manager</h3>
+              <h3 class="text-xl font-bold mb-4">{$t.projects.projectManager}</h3>
               <input
                 type="text"
-                placeholder="Type here"
+                placeholder={$t.projects.typeHere}
                 class="input"
                 bind:value={initProject!.projectManager}
               />
             </div>
             <div class="flex-1">
-              <h3 class="text-xl font-bold mb-4">Budget</h3>
+              <h3 class="text-xl font-bold mb-4">{$t.projects.budget}</h3>
               <input
-                type="text"
-                placeholder="Type here"
+                type="number"
+                placeholder={$t.projects.budgetPlaceholder}
                 class="input"
                 bind:value={initProject!.budget}
+                min="0"
+                step="0.01"
               />
             </div>
             <div class="flex-1">
-              <h3 class="text-xl font-bold mb-4">Start Date</h3>
+              <h3 class="text-xl font-bold mb-4">{$t.projects.startDate}</h3>
               <input
                 type="date"
-                placeholder="Type here"
+                placeholder={$t.projects.typeHere}
                 class="input"
                 bind:value={initProject!.startDate}
               />
             </div>
             <div class="flex-1">
-              <h3 class="text-xl font-bold mb-4">Due Date</h3>
+              <h3 class="text-xl font-bold mb-4">{$t.projects.dueDate}</h3>
               <input
                 type="date"
-                placeholder="Type here"
+                placeholder={$t.projects.typeHere}
                 class="input"
                 bind:value={initProject!.dueDate}
               />
@@ -796,23 +1031,23 @@
           type="radio"
           name="my_tabs_1"
           class="tab"
-          aria-label="Project Phases"
+          aria-label={$t.projects.projectPhases}
         />
         <div class="tab-content bg-base-100 border-base-300 px-6 py-4">
           <!-- Task-Form -->
           <div class="grid grid-cols-2 gap-4 mb-4">
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Initiation</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.initiation}</h3>
               </div>
-              <p>Start Date</p>
+              <p>{$t.projects.startDate}</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.initiationPhase[0].startDate}
                 readonly
               />
-              <p>Due Date</p>
+              <p>{$t.projects.dueDate}</p>
               <input
                 type="date"
                 class="input"
@@ -824,16 +1059,16 @@
             </label>
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Planning</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.planning}</h3>
               </div>
-              <p>Start Date</p>
+              <p>{$t.projects.startDate}</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.planingPhase[0].startDate}
                 readonly
               />
-              <p>Due Date</p>
+              <p>{$t.projects.dueDate}</p>
               <input
                 type="date"
                 class="input"
@@ -845,16 +1080,16 @@
             </label>
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Execution</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.execution}</h3>
               </div>
-              <p>Start Date</p>
+              <p>{$t.projects.startDate}</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.executionPhase[0].startDate}
                 readonly
               />
-              <p>Due Date</p>
+              <p>{$t.projects.dueDate}</p>
               <input
                 type="date"
                 class="input"
@@ -866,16 +1101,16 @@
             </label>
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Closure</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.closure}</h3>
               </div>
-              <p>Start Date</p>
+              <p>{$t.projects.startDate}</p>
               <input
                 type="date"
                 class="input"
                 bind:value={initProject!.closurePhase[0].startDate}
                 readonly
               />
-              <p>Due Date</p>
+              <p>{$t.projects.dueDate}</p>
               <input
                 type="date"
                 class="input"
@@ -891,7 +1126,7 @@
           type="radio"
           name="my_tabs_1"
           class="tab"
-          aria-label="Tasks"
+          aria-label={$t.projects.tasks}
           checked
         />
         <div class="tab-content bg-base-100 border-base-300 px-6 py-4">
@@ -899,88 +1134,63 @@
           <div class="grid grid-cols-2 gap-4 mb-4">
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Task Name</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.taskName}</h3>
               </div>
               <input
                 type="text"
                 class="input"
-                placeholder="Enter task name"
+                placeholder={$t.projects.enterTaskName}
                 bind:value={newTask.title}
               />
             </label>
 
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Assigned to</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.assignedTo}</h3>
               </div>
               <input
                 type="text"
                 class="input"
-                placeholder="Name"
+                placeholder={$t.projects.namePlaceholder}
                 bind:value={newTask.assignedTo}
               />
             </label>
 
             <div class="form-control w-full">
-              <span class="text-xl font-bold mb-4">Status</span>
+              <span class="text-xl font-bold mb-4">{$t.common.status}</span>
               <input
                 type="text"
                 class="input input-bordered w-full"
-                value="Pending"
+                value={$t.taskStatus.pending}
                 readonly
                 disabled
               />
             </div>
 
-            <div class="form-control w-full">
-              <span class="text-xl font-bold mb-2">Phase</span>
-              <div class="dropdown">
-                <button type="button" class="btn m-1" aria-haspopup="menu">
-                  Phase: {newTask.projectPhase || "Select Phase"}
-                </button>
-                <ul
-                  class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      on:click={() => setTaskPhase("Initiation")}
-                      >Initiation</button
-                    >
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      on:click={() => setTaskPhase("Planing")}>Planning</button
-                    >
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      on:click={() => setTaskPhase("Execution")}
-                      >Execution</button
-                    >
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      on:click={() => setTaskPhase("Closure")}>Closure</button
-                    >
-                  </li>
-                </ul>
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-2">{$t.projects.phase}</h3>
               </div>
-              {#if newTask.projectPhase}
-                <p class="text-sm mt-2 text-gray-600">
-                  Selected: <span class="font-semibold"
-                    >{newTask.projectPhase}</span
-                  >
-                </p>
-              {/if}
-            </div>
+
+              <select
+                class="select select-bordered w-full"
+                bind:value={newTask.projectPhase}
+                on:change={(e) =>
+                  setTaskPhase(
+                    e.currentTarget.value as ProjectPhase["phaseName"],
+                  )}
+              >
+                <option disabled selected value="">{$t.projects.selectPhase}</option>
+                <option value="Initiation">{$t.projects.initiation}</option>
+                <option value="Planing">{$t.projects.planning}</option>
+                <option value="Execution">{$t.projects.execution}</option>
+                <option value="Closure">{$t.projects.closure}</option>
+              </select>
+            </label>
 
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Start Date</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.startDate}</h3>
               </div>
               <input
                 type="date"
@@ -994,7 +1204,7 @@
 
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Due Date</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.projects.dueDate}</h3>
               </div>
               <input
                 type="date"
@@ -1008,16 +1218,209 @@
 
             <label class="form-control w-full">
               <div class="label">
-                <h3 class="text-xl font-bold mb-4">Description</h3>
+                <h3 class="text-xl font-bold mb-4">{$t.common.description}</h3>
               </div>
               <textarea
                 class="textarea span-2"
                 rows="3"
-                placeholder="Description"
+                placeholder={$t.projects.descriptionPlaceholder}
                 bind:value={newTask.description}
               ></textarea>
             </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-lg font-bold mb-2">{$t.projects.estimatedHours}</h3>
+              </div>
+              <input
+                type="number"
+                class="input"
+                placeholder={$t.projects.taskHoursPlaceholder}
+                bind:value={newTask.estimatedHours}
+                min="0"
+                step="0.5"
+              />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-xl font-bold mb-4">{$t.projects.hourlyRateType}</h3>
+              </div>
+              <select
+                class="select select-bordered w-full"
+                bind:value={newTask.hourlyRateType}
+              >
+                {#each hourlyRates as rate (rate.rateID)}
+                  <option value={rate.rateType}>{rate.rateType}</option>
+                {/each}
+              </select>
+            </label>
           </div>
+
+          <!-- Subtasks Section -->
+          <div class="divider"></div>
+          <h3 class="text-xl font-bold mb-4">{$t.projects.addSubtasks}</h3>
+
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-lg font-bold mb-2">{$t.projects.subtaskName}</h3>
+              </div>
+              <input
+                type="text"
+                class="input"
+                placeholder={$t.projects.enterSubtaskName}
+                bind:value={newSubtask.title}
+              />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-lg font-bold mb-2">{$t.projects.assignedTo}</h3>
+              </div>
+              <input
+                type="text"
+                class="input"
+                placeholder={$t.projects.namePlaceholder}
+                bind:value={newSubtask.assignedTo}
+              />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-lg font-bold mb-2">{$t.projects.startDate}</h3>
+              </div>
+              <input
+                type="date"
+                class="input"
+                bind:value={newSubtask.startDate}
+                min={taskPhaseRange.start || undefined}
+                max={taskPhaseRange.end || undefined}
+              />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-lg font-bold mb-2">{$t.projects.dueDate}</h3>
+              </div>
+              <input
+                type="date"
+                class="input"
+                bind:value={newSubtask.dueDate}
+                min={taskPhaseRange.start || undefined}
+                max={taskPhaseRange.end || undefined}
+              />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-sm font-bold mb-2">{$t.projects.estimatedHours}</h3>
+              </div>
+              <input
+                type="number"
+                class="input input-sm"
+                placeholder={$t.projects.subtaskHoursPlaceholder}
+                bind:value={newSubtask.estimatedHours}
+                min="0"
+                step="0.5"
+              />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-lg font-bold mb-2">{$t.projects.hourlyRateType}</h3>
+              </div>
+              <select
+                class="select select-bordered w-full"
+                bind:value={newSubtask.hourlyRateType}
+              >
+                {#each hourlyRates as rate (rate.rateID)}
+                  <option value={rate.rateType}>{rate.rateType}</option>
+                {/each}
+              </select>
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label">
+                <h3 class="text-lg font-bold mb-2">{$t.common.description}</h3>
+              </div>
+              <textarea
+                class="textarea"
+                rows="2"
+                placeholder={$t.projects.subtaskDescriptionPlaceholder}
+                bind:value={newSubtask.description}
+              ></textarea>
+            </label>
+          </div>
+
+          <button
+            type="button"
+            class="btn btn-secondary mb-4"
+            on:click={addSubtask}
+            disabled={!newSubtask.title.trim()}
+          >
+            {$t.projects.addSubtask}
+          </button>
+
+          <!-- Subtasks List -->
+          {#if currentTaskSubtasks.length > 0}
+            <h4 class="text-lg font-bold mb-3">
+              {$t.projects.currentSubtasks} ({currentTaskSubtasks.length})
+            </h4>
+            <div class="overflow-x-auto mb-6">
+              <table class="table w-full">
+                <thead>
+                  <tr>
+                    <th>{$t.projects.subtasks}</th>
+                    <th>{$t.projects.assignedTo}</th>
+                    <th>{$t.common.hours}</th>
+                    <th>{$t.projects.duration}</th>
+                    <th>{$t.projects.action}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each currentTaskSubtasks as subtask (subtask.subtaskID)}
+                    <tr>
+                      <td>
+                        <div>
+                          <p class="font-semibold">{subtask.title}</p>
+                          <p class="text-sm text-gray-500">
+                            {subtask.description || "-"}
+                          </p>
+                        </div>
+                      </td>
+                      <td>{subtask.assignedTo || "-"}</td>
+                      <td>
+                        <span class="font-semibold"
+                          >{subtask.estimatedHours || 0}h</span
+                        >
+                      </td>
+                      <td>
+                        {#if subtask.startDate && subtask.dueDate}
+                          {Math.ceil(
+                            (new Date(subtask.dueDate).getTime() -
+                              new Date(subtask.startDate).getTime()) /
+                              (1000 * 60 * 60 * 24),
+                          )}d
+                        {:else}
+                          <span class="text-gray-400 italic">{$t.common.optional}</span>
+                        {/if}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-error btn-outline"
+                          on:click={() => removeSubtask(subtask.subtaskID)}
+                        >
+                          {$t.common.delete}
+                        </button>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
 
           <button
             type="button"
@@ -1025,12 +1428,12 @@
             on:click={addTask}
             disabled={!newTask.title.trim() || !newTask.projectPhase}
           >
-            Add Task
+            {$t.projects.addTask}
           </button>
 
           <!-- Task-Liste -->
           <h3 class="text-xl font-bold mb-4">
-            Tasks ({initProject?.Tasks.length || 0})
+            {$t.projects.tasks} ({initProject?.Tasks.length || 0})
           </h3>
 
           {#if initProject && initProject.Tasks.length > 0}
@@ -1047,13 +1450,13 @@
                         on:change={toggleSelectAll}
                       />
                     </th>
-                    <th>Task</th>
-                    <th>Description</th>
-                    <th>Assigned To</th>
-                    <th>Status</th>
-                    <th>Phase</th>
-                    <th>Due Date</th>
-                    <th>Action</th>
+                    <th>{$t.projects.taskName}</th>
+                    <th>{$t.common.description}</th>
+                    <th>{$t.projects.assignedTo}</th>
+                    <th>{$t.common.status}</th>
+                    <th>{$t.projects.phase}</th>
+                    <th>{$t.projects.dueDate}</th>
+                    <th>{$t.projects.action}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1080,7 +1483,13 @@
                           class:badge-warning={task.status === "In Progress"}
                           class:badge-info={task.status === "To Do"}
                         >
-                          {task.status}
+                          {task.status === "Pending"
+                            ? $t.taskStatus.pending
+                            : task.status === "To Do"
+                              ? $t.taskStatus.toDo
+                              : task.status === "In Progress"
+                                ? $t.taskStatus.inProgress
+                                : $t.taskStatus.done}
                         </span>
                       </td>
                       <td>
@@ -1099,14 +1508,14 @@
                           class="btn btn-sm btn-warning btn-outline"
                           on:click={() => editTask(task.taskID)}
                         >
-                          Edit
+                          {$t.common.edit}
                         </button>
                         <button
                           type="button"
                           class="btn btn-sm btn-error btn-outline"
                           on:click={() => removeTask(task.taskID)}
                         >
-                          Delete
+                          {$t.common.delete}
                         </button>
                       </td>
                     </tr>
@@ -1116,7 +1525,7 @@
             </div>
           {:else}
             <div class="alert alert-info mt-4">
-              <span>No tasks recorded yet. Add a new task above.</span>
+              <span>{$t.projects.noTasksYet}</span>
             </div>
           {/if}
 
@@ -1128,7 +1537,7 @@
                 on:click={deleteSelectedTasks}
                 disabled={selectedTasks.size === 0}
               >
-                Delete Selected ({selectedTasks.size})
+                {$t.projects.deleteSelected} ({selectedTasks.size})
               </button>
             </div>
 
@@ -1138,7 +1547,7 @@
                   class="btn btn-soft"
                   on:click={() => timelineChartRef?.resetFocus()}
                 >
-                  Focus
+                  {$t.projects.focus}
                 </button>
               </li>
             </ul>
@@ -1165,7 +1574,7 @@
           type="radio"
           name="my_tabs_1"
           class="tab"
-          aria-label="Notifications"
+          aria-label={$t.projects.notifications}
           checked
         />
         <div class="tab-content bg-base-100 border-base-300 p-6"></div>
@@ -1173,14 +1582,14 @@
 
       <div class="flex gap-4 mt-4">
         <button type="button" class="btn" on:click={submitNewProject}>
-          Submit
+          {$t.common.submit}
         </button>
         <button
           type="button"
           class="btn btn-neutral"
           on:click={cancelNewProject}
         >
-          Cancel
+          {$t.common.cancel}
         </button>
       </div>
     </div>
