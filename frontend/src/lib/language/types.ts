@@ -10,6 +10,7 @@ export interface Translations {
     customers: string;
     settings: string;
     tasks: string;
+    admin: string;
   };
 
   // Common
@@ -132,6 +133,20 @@ export interface Translations {
     filterCustomer: string;
     allProjectManagers: string;
     allCustomers: string;
+    currentPhase: string;
+    onTrack: string;
+    behind: string;
+    budgetUsage: string;
+    reserve: string;
+    teamMembers: string;
+    memberName: string;
+    assignedTasks: string;
+    memberBudget: string;
+    memberWorkload: string;
+    memberStatus: string;
+    noTeamMembers: string;
+    role: string;
+    member: string;
   };
 
   // Customers

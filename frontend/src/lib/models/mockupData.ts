@@ -7,172 +7,190 @@ import type {
 } from "./project";
 import { writable } from "svelte/store";
 
-const firstNames = [
-    "Liam",
-    "Emma",
-    "Noah",
-    "Olivia",
-    "Elijah",
-    "Ava",
-    "Sophia",
-    "Mason",
-    "Isabella",
-    "Lucas",
-    "Mia",
-    "Charlotte",
-    "Amelia",
-    "James",
-    "Benjamin",
+// Realistic German/Swiss employees
+const germanEmployees = [
+    { firstName: "Michael", lastName: "Mueller" },
+    { firstName: "Sandra", lastName: "Schmidt" },
+    { firstName: "Thomas", lastName: "Weber" },
+    { firstName: "Claudia", lastName: "Keller" },
+    { firstName: "Stefan", lastName: "Schneider" },
+    { firstName: "Angela", lastName: "Fischer" },
+    { firstName: "Peter", lastName: "Bauer" },
+    { firstName: "Daniela", lastName: "Wolf" },
+    { firstName: "Klaus", lastName: "Meyer" },
+    { firstName: "Martina", lastName: "Hoffmann" },
 ];
 
-const lastNames = [
-    "Miller",
-    "Schmidt",
-    "Wagner",
-    "Fischer",
-    "Meyer",
-    "Hoffmann",
-    "Schneider",
-    "Bauer",
-    "Klein",
-    "Wolf",
-    "Becker",
-    "Hartmann",
+const swissCompanies = [
+    { name: "Siemens Schweiz", city: "Zurich", zip: "8050" },
+    { name: "ABB Ltd", city: "Zurich", zip: "8050" },
+    { name: "Roche Diagnostics", city: "Rotkreuz", zip: "6343" },
+    { name: "Novartis", city: "Basel", zip: "4056" },
+    { name: "SwissRe", city: "Zurich", zip: "8022" },
+    { name: "UBS AG", city: "Zurich", zip: "8098" },
+    { name: "Kraft Heinz", city: "Zurich", zip: "8050" },
+    { name: "Holcim", city: "Zurich", zip: "8045" },
+    { name: "SoftExpert AG", city: "Bern", zip: "3011" },
+    { name: "TCS AG", city: "Zurich", zip: "8027" },
 ];
-
-const companyPrefixes = [
-    "Nova",
-    "Apex",
-    "Vertex",
-    "Blue",
-    "Prime",
-    "Quantum",
-    "Nimbus",
-    "Atlas",
-    "Delta",
-    "Pulse",
-    "Skyline",
-    "Orbit",
-];
-
-const companySuffixes = ["Solutions", "Systems", "Labs", "Consulting", "Works", "Group"];
 
 const jobTitles = [
-    "Project Coordinator",
-    "Team Lead",
-    "Operations Manager",
+    "Project Manager",
+    "Technical Lead",
     "Business Analyst",
-    "Technical Specialist",
+    "System Engineer",
+    "QA Engineer",
     "Product Owner",
 ];
 
-const departments = ["Operations", "IT", "Finance", "Sales", "Marketing", "HR"];
+const departments = ["IT", "Finance", "Operations", "Sales", "Development"];
 
-const projectTitles = [
-    "Cloud Migration",
-    "CRM Rollout",
-    "Security Audit",
-    "Mobile App Upgrade",
-    "Data Warehouse Build",
-    "API Platform",
-    "ERP Integration",
-    "Analytics Dashboard",
-    "Website Relaunch",
-    "Helpdesk Automation",
-    "Compliance Program",
-    "Process Optimization",
-    "Infrastructure Refresh",
-    "Customer Portal",
-    "AI Prototype",
-    "Reporting Overhaul",
+const realisticProjects = [
+    { title: "ERP System Migration", budget: 850000, duration: 180 },
+    { title: "Cloud Infrastructure Upgrade", budget: 620000, duration: 120 },
+    { title: "Digital Transformation Initiative", budget: 1200000, duration: 210 },
+    { title: "Mobile Banking App Development", budget: 450000, duration: 150 },
+    { title: "Data Analytics Platform", budget: 380000, duration: 90 },
+    { title: "Cybersecurity Audit & Implementation", budget: 290000, duration: 75 },
+    { title: "Customer Portal Redesign", budget: 185000, duration: 60 },
+    { title: "Business Process Automation", budget: 320000, duration: 120 },
+    { title: "API Gateway Implementation", budget: 245000, duration: 90 },
+    { title: "Performance Optimization", budget: 155000, duration: 45 },
 ];
 
-const statuses: ProjectStatus[] = [
+const realisticTasks = [
+    { name: "Requirements Gathering", hours: 40 },
+    { name: "System Design & Architecture", hours: 80 },
+    { name: "Development Sprint 1", hours: 160 },
+    { name: "Development Sprint 2", hours: 160 },
+    { name: "Testing & QA", hours: 120 },
+    { name: "Documentation", hours: 60 },
+    { name: "User Training", hours: 40 },
+    { name: "Go-live Preparation", hours: 80 },
+    { name: "Data Migration", hours: 100 },
+    { name: "Integration Testing", hours: 90 },
+];
+
+const realisticSubtasks: Record<string, string[]> = {
+    "Requirements Gathering": [
+        "Stakeholder interviews",
+        "Process analysis",
+        "Requirements documentation",
+    ],
+    "System Design & Architecture": [
+        "Technical architecture design",
+        "Database schema design",
+        "API specifications",
+        "Security design review",
+    ],
+    "Development Sprint 1": [
+        "Backend APIs implementation",
+        "Database layer setup",
+        "Authentication module",
+    ],
+    "Development Sprint 2": [
+        "Frontend components",
+        "User interface implementation",
+        "Integration with APIs",
+    ],
+    "Testing & QA": [
+        "Unit testing",
+        "Integration testing",
+        "Performance testing",
+        "User acceptance testing",
+    ],
+    "Documentation": [
+        "Technical documentation",
+        "User manual creation",
+        "API documentation",
+    ],
+    "User Training": [
+        "Training material preparation",
+        "Workshop sessions",
+        "Support documentation",
+    ],
+    "Go-live Preparation": [
+        "Environment setup",
+        "Data validation",
+        "Backup procedures",
+        "Rollback plan",
+    ],
+    "Data Migration": [
+        "Data extraction",
+        "Data transformation",
+        "Data validation",
+        "Migration execution",
+    ],
+    "Integration Testing": [
+        "Test case preparation",
+        "System integration setup",
+        "End-to-end testing",
+    ],
+};
+
+const projectStatuses: ProjectStatus[] = [
     "Initiation",
     "Planning",
     "Execution",
     "Closure",
     "Closed",
-    "Cancelled",
 ];
 
-const taskStatuses: ("To Do" | "In Progress" | "Done")[] = [
+const taskStatuses: ("To Do" | "In Progress" | "Done" | "Pending")[] = [
     "To Do",
     "In Progress",
     "Done",
+    "Pending",
 ];
 
+const hourlyRateTypes = ["SystemEngineer", "ProjectManager", "Developer", "QA", "BusinessAnalyst"];
 
-function randomFrom<T>(list: T[]): T {
-    return list[Math.floor(Math.random() * list.length)];
-}
-
-function randomInt(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function buildFullName(): string {
-    return `${randomFrom(firstNames)} ${randomFrom(lastNames)}`;
-}
-
-function buildCompanyName(index: number): string {
-    return `${randomFrom(companyPrefixes)} ${randomFrom(companySuffixes)} ${index + 1}`;
-}
-
-export const customerList: Customer[] = Array.from({ length: 10 }, (_, index) => {
-    const customerID = 10000 + index;
-    const contactName = buildFullName();
-    const companyName = buildCompanyName(index);
-    const companySlug = companyName.toLowerCase().replace(/\s+/g, "");
-
-    return {
-        customerID,
-        companyName,
-        contactName,
-        email: `contact@${companySlug}.com`,
-        phone: `+49 30 ${randomInt(1000000, 9999999)}`,
-        zip: randomInt(10000, 99999),
-    };
-});
+export const customerList: Customer[] = swissCompanies.map((company, index) => ({
+    customerID: 1000 + index,
+    companyName: company.name,
+    contactName: germanEmployees[index % germanEmployees.length].firstName + " " + germanEmployees[index % germanEmployees.length].lastName,
+    email: `contact@${company.name.toLowerCase().replace(/\s+/g, "")}.ch`,
+    phone: `+41 ${Math.floor(Math.random() * 89) + 1} ${Math.floor(Math.random() * 9000000) + 1000000}`,
+    zip: parseInt(company.zip),
+}));
 
 export const customerEmployeeList: CustomerEmployee[] = customerList.flatMap((customer) =>
-    Array.from({ length: 5 }, (_, index) => {
-        const firstName = randomFrom(firstNames);
-        const lastName = randomFrom(lastNames);
-
-        return {
-            customerID: customer.customerID,
-            employeeID: customer.customerID * 100 + index + 1,
-            firstName,
-            lastName,
-            phone: `+49 170 ${randomInt(1000000, 9999999)}`,
-            email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${customer.companyName
-                .toLowerCase()
-                .replace(/\s+/g, "")}.com`,
-            jobTitle: randomFrom(jobTitles),
-            department: randomFrom(departments),
-        };
-    }),
+    germanEmployees.slice(0, 3).map((emp, index) => ({
+        customerID: customer.customerID,
+        employeeID: customer.customerID * 100 + index + 1,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        phone: `+41 79 ${Math.floor(Math.random() * 9000000) + 1000000}`,
+        email: `${emp.firstName.toLowerCase()}.${emp.lastName.toLowerCase()}@${customer.companyName
+            .toLowerCase()
+            .replace(/\s+/g, "")}.ch`,
+        jobTitle: jobTitles[Math.floor(Math.random() * jobTitles.length)],
+        department: departments[Math.floor(Math.random() * departments.length)],
+    })),
 );
 
-const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
-    const projectCustomer = randomFrom(customerList);
-    const managers = customerEmployeeList.filter(
-        (employee) => employee.customerID === projectCustomer.customerID,
-    );
-    const manager = randomFrom(managers);
-    const startDate = new Date(2026, randomInt(0, 11), randomInt(1, 28));
+const initialProjectList: Project[] = realisticProjects.map((projTemplate, index) => {
+    const customer = customerList[index % customerList.length];
+    const managers = customerEmployeeList.filter((emp) => emp.customerID === customer.customerID);
+    const manager = managers[0] || customerEmployeeList[0];
+    
+    const startDate = new Date(2026, 0 + Math.floor(index / 3), 1 + (index % 28));
     const dueDate = new Date(startDate);
-    dueDate.setDate(dueDate.getDate() + randomInt(30, 240));
+    dueDate.setDate(dueDate.getDate() + projTemplate.duration);
     const projectID = 50000 + index;
 
+    const phaseDuration = Math.floor(projTemplate.duration / 4);
     const initiationStart = new Date(startDate);
-    const initiationDue = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const initiationDue = new Date(startDate.getTime() + phaseDuration * 24 * 60 * 60 * 1000);
+    
     const planingStart = new Date(initiationDue);
-    const planingDue = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const planingDue = new Date(planingStart.getTime() + phaseDuration * 24 * 60 * 60 * 1000);
+    
     const executionStart = new Date(planingDue);
-    const executionDue = new Date(startDate.getTime() + 180 * 24 * 60 * 60 * 1000);
+    const executionDue = new Date(executionStart.getTime() + (phaseDuration * 1.5) * 24 * 60 * 60 * 1000);
+    
     const closureStart = new Date(executionDue);
+    const closureDue = new Date(dueDate);
 
     const buildPhase = (
         phaseid: number,
@@ -188,15 +206,15 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
     });
 
     return {
-        title: `${randomFrom(projectTitles)} ${index + 1}`,
-        customerID: projectCustomer.customerID,
-        customerName: projectCustomer.companyName,
-        budget: randomInt(50000, 1500000),
+        title: projTemplate.title,
+        customerID: customer.customerID,
+        customerName: customer.companyName,
+        budget: projTemplate.budget,
         dueDate,
         startDate,
         projectID,
         projectManager: `${manager.firstName} ${manager.lastName}`,
-        projectstatus: randomFrom(statuses),
+        projectstatus: projectStatuses[Math.floor(Math.random() * projectStatuses.length)],
         initiationPhase: [
             buildPhase(projectID * 10 + 1, "Initiation", initiationStart, initiationDue),
         ],
@@ -207,16 +225,12 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
             buildPhase(projectID * 10 + 3, "Execution", executionStart, executionDue),
         ],
         closurePhase: [
-            buildPhase(projectID * 10 + 4, "Closure", closureStart, dueDate),
+            buildPhase(projectID * 10 + 4, "Closure", closureStart, closureDue),
         ],
-        Tasks: Array.from({ length: randomInt(3, 10) }, (_, taskIndex) => {
-            const phaseNames: ProjectPhase["phaseName"][] = [
-                "Initiation",
-                "Planing",
-                "Execution",
-                "Closure",
-            ];
-            const projectPhase = randomFrom(phaseNames);
+        Tasks: realisticTasks.map((taskTemplate, taskIndex) => {
+            const phases: ProjectPhase["phaseName"][] = ["Initiation", "Planing", "Execution", "Closure"];
+            const projectPhase = phases[Math.floor(Math.random() * phases.length)];
+            
             const phaseLookup: Record<ProjectPhase["phaseName"], number> = {
                 Initiation: projectID * 10 + 1,
                 Planing: projectID * 10 + 2,
@@ -225,44 +239,47 @@ const initialProjectList: Project[] = Array.from({ length: 20 }, (_, index) => {
             };
 
             const taskStartDate = new Date(startDate);
-            taskStartDate.setDate(taskStartDate.getDate() + randomInt(1, 90));
-            const taskDueDate = new Date(startDate);
-            taskDueDate.setDate(taskDueDate.getDate() + randomInt(7, 180));
+            taskStartDate.setDate(taskStartDate.getDate() + Math.floor(Math.random() * 30));
+            
+            const taskDueDate = new Date(taskStartDate);
+            taskDueDate.setDate(taskDueDate.getDate() + Math.floor(taskTemplate.hours / 8));
 
-            const hourlyRateTypes = ["SystemEngineer", "ProjectManager", "Developer", "QA", "BusinesAnalyst"];
-            const taskHours = randomInt(8, 80);
+            const teamMember = managers[Math.floor(Math.random() * managers.length)];
 
             return {
                 taskID: projectID * 100 + taskIndex,
-                title: `Task ${taskIndex + 1}`,
+                title: taskTemplate.name,
                 startDate: taskStartDate,
                 dueDate: taskDueDate,
                 phaseId: phaseLookup[projectPhase],
                 projectPhase,
-                status: randomFrom(taskStatuses),
+                status: taskStatuses[Math.floor(Math.random() * taskStatuses.length)],
                 projectID,
-                description: `Description for task ${taskIndex + 1}`,
-                assignedTo: `${manager.firstName} ${manager.lastName}`,
+                description: `Task for ${projTemplate.title} - ${taskTemplate.name}`,
+                assignedTo: `${teamMember.firstName} ${teamMember.lastName}`,
                 notificationSent: false,
-                estimatedHours: taskHours,
-                hourlyRateType: randomFrom(hourlyRateTypes),
-                subtasks: Array.from({ length: randomInt(0, 3) }, (_, subtaskIndex) => {
+                estimatedHours: taskTemplate.hours,
+                hourlyRateType: hourlyRateTypes[Math.floor(Math.random() * hourlyRateTypes.length)],
+                subtasks: (realisticSubtasks[taskTemplate.name] || []).map((subtaskName, subtaskIndex) => {
                     const subtaskStartDate = new Date(taskStartDate);
-                    subtaskStartDate.setDate(subtaskStartDate.getDate() + randomInt(0, 5));
+                    subtaskStartDate.setDate(subtaskStartDate.getDate() + subtaskIndex);
+                    
                     const subtaskDueDate = new Date(taskDueDate);
-                    subtaskDueDate.setDate(subtaskDueDate.getDate() - randomInt(1, 5));
+                    subtaskDueDate.setDate(subtaskDueDate.getDate() - Math.floor(Math.random() * 2));
+
+                    const subtaskMember = managers[Math.floor(Math.random() * managers.length)];
 
                     return {
                         subtaskID: projectID * 1000 + taskIndex * 10 + subtaskIndex,
                         taskID: projectID * 100 + taskIndex,
-                        title: `Subtask ${subtaskIndex + 1}`,
-                        description: `Description for subtask ${subtaskIndex + 1}`,
-                        status: randomFrom(taskStatuses),
-                        assignedTo: randomFrom(managers).firstName,
-                        startDate: Math.random() > 0.3 ? subtaskStartDate : null,
-                        dueDate: Math.random() > 0.3 ? subtaskDueDate : null,
-                        estimatedHours: randomInt(4, 40),
-                        hourlyRateType: randomFrom(hourlyRateTypes),
+                        title: subtaskName,
+                        description: `Subtask: ${subtaskName}`,
+                        status: taskStatuses[Math.floor(Math.random() * taskStatuses.length)],
+                        assignedTo: `${subtaskMember.firstName} ${subtaskMember.lastName}`,
+                        startDate: subtaskStartDate,
+                        dueDate: subtaskDueDate,
+                        estimatedHours: Math.floor(Math.random() * 30) + 5,
+                        hourlyRateType: hourlyRateTypes[Math.floor(Math.random() * hourlyRateTypes.length)],
                     };
                 }),
             };

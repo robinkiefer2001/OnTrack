@@ -9,6 +9,7 @@ export const en: Translations = {
     customers: "Customers",
     settings: "Settings",
     tasks: "Tasks",
+    admin: "Admin",
   },
 
   common: {
@@ -128,6 +129,20 @@ export const en: Translations = {
     filterCustomer: "Customer filter",
     allProjectManagers: "All project managers",
     allCustomers: "All customers",
+    currentPhase: "Current Phase",
+    onTrack: "On Track",
+    behind: "Behind Schedule",
+    budgetUsage: "Budget Usage",
+    reserve: "Reserve",
+    teamMembers: "Project Team",
+    memberName: "Name",
+    assignedTasks: "Assigned Tasks",
+    memberBudget: "Budget",
+    memberWorkload: "Workload",
+    memberStatus: "Status",
+    noTeamMembers: "No team members assigned",
+    role: "Role",
+    member: "Member",
   },
 
   customers: {

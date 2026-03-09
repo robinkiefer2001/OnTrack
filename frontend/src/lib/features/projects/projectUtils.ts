@@ -146,3 +146,67 @@ export function getProjectBudgetSummary(
     isOverBudget,
   };
 }
+
+// Determines the current phase of a project based on today's date
+export function getCurrentPhase(project: Project): ProjectPhase["phaseName"] | null {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const phases: Array<{ name: ProjectPhase["phaseName"]; phase: ProjectPhase[] }> = [
+    { name: "Initiation", phase: project.initiationPhase },
+    { name: "Planing", phase: project.planingPhase },
+    { name: "Execution", phase: project.executionPhase },
+    { name: "Closure", phase: project.closurePhase },
+  ];
+
+  for (const { name, phase } of phases) {
+    const phaseStart = phase[0]?.startDate ? new Date(phase[0].startDate) : null;
+    const phaseEnd = phase[0]?.dueDate ? new Date(phase[0].dueDate) : null;
+
+    if (phaseStart && phaseEnd) {
+      phaseStart.setHours(0, 0, 0, 0);
+      phaseEnd.setHours(0, 0, 0, 0);
+
+      if (today >= phaseStart && today <= phaseEnd) {
+        return name;
+      }
+    }
+  }
+
+  // If no phase matches, check if project hasn't started yet
+  if (project.initiationPhase[0]?.startDate) {
+    const initStart = new Date(project.initiationPhase[0].startDate);
+    initStart.setHours(0, 0, 0, 0);
+    if (today < initStart) {
+      return "Initiation";
+    }
+  }
+
+  // If past all phases, return last phase
+  return "Closure";
+}
+
+// Determines if a project is on track
+export function isProjectOnTrack(project: Project): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const currentPhase = getCurrentPhase(project);
+  if (!currentPhase) return false;
+
+  const phases: Record<ProjectPhase["phaseName"], ProjectPhase[]> = {
+    Initiation: project.initiationPhase,
+    Planing: project.planingPhase,
+    Execution: project.executionPhase,
+    Closure: project.closurePhase,
+  };
+
+  const phase = phases[currentPhase]?.[0];
+  if (!phase || !phase.dueDate) return true;
+
+  const phaseEndDate = new Date(phase.dueDate);
+  phaseEndDate.setHours(0, 0, 0, 0);
+
+  // On track if today is before or on the due date
+  return today <= phaseEndDate;
+}

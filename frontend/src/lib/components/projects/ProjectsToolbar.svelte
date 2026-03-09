@@ -18,9 +18,7 @@
   }>();
 </script>
 
-<ul
-  class="menu menu-vertical lg:menu-horizontal bg-base-100 rounded-box gap-4 mb-4"
->
+<ul class="flex flex-wrap items-center gap-4 mb-4 bg-base-100 rounded-box p-4">
   <li>
     <button class="btn btn-neutral" on:click={() => dispatch("newProject")}
       >{$t.projects.newProject}</button
@@ -54,9 +52,8 @@
       >
     </li>
   {/if}
-
-  <li class="w-full lg:w-auto">
-    <label class="input mt-4">
+  <li>
+    <label class="input">
       <input
         type="search"
         placeholder={$t.projects.fullTextSearch}
@@ -65,8 +62,8 @@
     </label>
   </li>
 
-  <li class="w-full lg:w-auto">
-    <select class="select select-bordered mt-4" bind:value={projectManagerFilter}>
+  <li>
+    <select class="select select-bordered" bind:value={projectManagerFilter}>
       <option value="">{$t.projects.allProjectManagers}</option>
       {#each projectManagers as pm}
         <option value={pm}>{pm}</option>
@@ -74,8 +71,8 @@
     </select>
   </li>
 
-  <li class="w-full lg:w-auto">
-    <select class="select select-bordered mt-4" bind:value={customerFilter}>
+  <li>
+    <select class="select select-bordered" bind:value={customerFilter}>
       <option value="">{$t.projects.allCustomers}</option>
       {#each customers as customer}
         <option value={customer}>{customer}</option>

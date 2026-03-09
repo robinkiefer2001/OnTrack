@@ -51,6 +51,7 @@
   let customers: string[] = [];
   let filteredProjects: Project[] = [];
   let filteredCustomerList: Customer[] = [];
+  let expandedTeamMembers = new Set<string>();
 
   // Task form state
   let newTask = {
@@ -285,6 +286,79 @@
       (sum, task) => sum + getTaskCost(task, hourlyRates),
       0,
     );
+  }
+
+  function getTeamMembers(project: Project) {
+    const members: Record<
+      string,
+      {
+        name: string;
+        role: "ProjectManager" | "Member";
+        tasks: Task[];
+        totalHours: number;
+        totalBudget: number;
+        isOnTrack: boolean;
+      }
+    > = {};
+
+    // Add project manager as a member
+    if (project.projectManager && project.projectManager.trim()) {
+      const pmName = project.projectManager.trim();
+      members[pmName] = {
+        name: pmName,
+        role: "ProjectManager",
+        tasks: [],
+        totalHours: 0,
+        totalBudget: 0,
+        isOnTrack: true,
+      };
+    }
+
+    // Add all members from tasks
+    (project.Tasks || []).forEach((task) => {
+      const memberName = (task.assignedTo || "Unassigned").trim();
+      if (!members[memberName]) {
+        members[memberName] = {
+          name: memberName,
+          role: "Member",
+          tasks: [],
+          totalHours: 0,
+          totalBudget: 0,
+          isOnTrack: true,
+        };
+      }
+
+      members[memberName].tasks.push(task);
+
+      // Add task and subtask hours
+      const taskHours = (task.estimatedHours || 0);
+      const subtaskHours = (task.subtasks || []).reduce(
+        (sum, st) => sum + (st.estimatedHours || 0),
+        0,
+      );
+      members[memberName].totalHours += taskHours + subtaskHours;
+
+      // Add task cost
+      members[memberName].totalBudget += getTaskCost(task, hourlyRates);
+
+      // Check if task is on track (not "Done" and before due date, or Done)
+      const today = new Date();
+      const taskDueDate = task.dueDate ? new Date(task.dueDate) : null;
+      if (
+        task.status !== "Done" &&
+        taskDueDate &&
+        today > taskDueDate
+      ) {
+        members[memberName].isOnTrack = false;
+      }
+    });
+
+    // Sort: ProjectManager first, then others by name
+    return Object.values(members).sort((a, b) => {
+      if (a.role === "ProjectManager" && b.role !== "ProjectManager") return -1;
+      if (a.role !== "ProjectManager" && b.role === "ProjectManager") return 1;
+      return a.name.localeCompare(b.name);
+    });
   }
 
   function cancelNewProject() {
@@ -569,6 +643,7 @@
 <ProjectsTable
   projects={filteredProjects}
   {selectedRow}
+  {hourlyRates}
   on:rowSelect={handleRowSelect}
 />
 
@@ -832,6 +907,191 @@
             : null}
         />
       </div>
+
+      <!-- Team Members Overview -->
+      {#if selectedProject}
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <h2 class="text-2xl font-bold text-gray-900 mb-6">{$t.projects.teamMembers}</h2>
+
+          {#if getTeamMembers(selectedProject).length > 0}
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="border-b border-gray-200">
+                    <th class="w-12"></th>
+                    <th class="text-left py-3 px-4 font-semibold text-gray-700">{$t.projects.memberName}</th>
+                    <th class="text-center py-3 px-4 font-semibold text-gray-700">{$t.projects.role}</th>
+                    <th class="text-center py-3 px-4 font-semibold text-gray-700">{$t.projects.assignedTasks}</th>
+                    <th class="text-center py-3 px-4 font-semibold text-gray-700">{$t.projects.memberWorkload}</th>
+                    <th class="text-right py-3 px-4 font-semibold text-gray-700">{$t.projects.memberBudget}</th>
+                    <th class="text-center py-3 px-4 font-semibold text-gray-700">{$t.projects.memberStatus}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each getTeamMembers(selectedProject) as member (member.name)}
+                    <tr 
+                      class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      on:click={() => {
+                        if (expandedTeamMembers.has(member.name)) {
+                          expandedTeamMembers.delete(member.name);
+                        } else {
+                          expandedTeamMembers.add(member.name);
+                        }
+                        expandedTeamMembers = expandedTeamMembers;
+                      }}
+                    >
+                      <td class="py-3 px-4 text-center">
+                        <button class="btn btn-sm btn-ghost" on:click|stopPropagation>
+                          {expandedTeamMembers.has(member.name) ? '−' : '+'}
+                        </button>
+                      </td>
+                      <td class="py-3 px-4">
+                        <p class="font-medium text-gray-900">{member.name}</p>
+                      </td>
+                      <td class="py-3 px-4 text-center">
+                        <span class={`badge ${member.role === 'ProjectManager' ? 'badge-primary' : 'badge-outline'}`}>
+                          {member.role === 'ProjectManager' ? $t.projects.projectManager : $t.projects.member}
+                        </span>
+                      </td>
+                      <td class="py-3 px-4 text-center">
+                        <span class="badge badge-outline">{member.tasks.length}</span>
+                      </td>
+                      <td class="py-3 px-4 text-center">
+                        <p class="font-semibold text-gray-900">{member.totalHours}h</p>
+                      </td>
+                      <td class="py-3 px-4 text-right">
+                        <p class="font-semibold text-gray-900">{formatBudget(member.totalBudget)}</p>
+                      </td>
+                      <td class="py-3 px-4 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                          <div
+                            class={`w-3 h-3 rounded-full ${
+                              member.isOnTrack ? "bg-green-500" : "bg-red-500"
+                            }`}
+                          ></div>
+                          <span class={`text-sm font-semibold ${member.isOnTrack ? 'text-green-600' : 'text-red-600'}`}>
+                            {member.isOnTrack ? $t.projects.onTrack : $t.projects.behind}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <!-- Expanded Details Row -->
+                    {#if expandedTeamMembers.has(member.name) && member.tasks.length > 0}
+                      <tr class="bg-gray-50 border-b border-gray-100">
+                        <td colspan="7" class="p-0">
+                          <div class="p-6 space-y-4">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-4">
+                              {$t.projects.tasks} & {$t.projects.subtasks}
+                            </h4>
+                            <div class="space-y-3">
+                              {#each member.tasks as task}
+                                <div class="border-l-4 border-blue-500 pl-4 py-2 bg-white rounded p-3">
+                                  <div class="flex items-start justify-between gap-4">
+                                    <div class="flex-1">
+                                      <p class="font-semibold text-gray-900">{task.title}</p>
+                                      <p class="text-sm text-gray-600 mt-1">{task.description || '-'}</p>
+                                      <div class="flex gap-2 mt-2">
+                                        <span
+                                          class="badge h-auto min-h-7 px-2 py-0.5 whitespace-nowrap text-xs"
+                                          class:badge-neutral={task.status === "Pending"}
+                                          class:badge-success={task.status === "Done"}
+                                          class:badge-warning={task.status === "In Progress"}
+                                          class:badge-info={task.status === "To Do"}
+                                        >
+                                          {task.status === "Pending"
+                                            ? $t.taskStatus.pending
+                                            : task.status === "To Do"
+                                              ? $t.taskStatus.toDo
+                                              : task.status === "In Progress"
+                                                ? $t.taskStatus.inProgress
+                                                : $t.taskStatus.done}
+                                        </span>
+                                        {#if task.projectPhase}
+                                          <span class="badge badge-outline badge-sm">{task.projectPhase}</span>
+                                        {/if}
+                                      </div>
+                                    </div>
+                                    <div class="text-right whitespace-nowrap">
+                                      <p class="text-sm text-gray-600">{task.estimatedHours || 0}h</p>
+                                      <p class="text-sm font-semibold text-gray-900">
+                                        {formatBudget(getTaskCost(task, hourlyRates))}
+                                      </p>
+                                      {#if task.dueDate}
+                                        <p class="text-xs text-gray-500 mt-1">
+                                          {dueDateLabel(task.dueDate)}
+                                        </p>
+                                      {/if}
+                                    </div>
+                                  </div>
+
+                                  <!-- Subtasks -->
+                                  {#if task.subtasks && task.subtasks.length > 0}
+                                    <div class="mt-3 ml-4 space-y-2 border-l-2 border-gray-300 pl-4">
+                                      {#each task.subtasks as subtask}
+                                        <div class="py-2 bg-gray-100 rounded p-3">
+                                          <div class="flex items-start justify-between gap-3">
+                                            <div class="flex-1">
+                                              <div class="flex items-center gap-2">
+                                                <p class="font-medium text-gray-800 text-sm">{subtask.title}</p>
+                                                {#if subtask.assignedTo}
+                                                  <span class="text-xs text-gray-600 bg-white px-2 py-1 rounded">
+                                                    {subtask.assignedTo}
+                                                  </span>
+                                                {/if}
+                                              </div>
+                                              {#if subtask.description}
+                                                <p class="text-xs text-gray-600 mt-1">{subtask.description}</p>
+                                              {/if}
+                                              <div class="flex gap-2 mt-2">
+                                                <span
+                                                  class="badge badge-sm h-auto px-2 py-0.5"
+                                                  class:badge-neutral={subtask.status === "Pending"}
+                                                  class:badge-success={subtask.status === "Done"}
+                                                  class:badge-warning={subtask.status === "In Progress"}
+                                                  class:badge-info={subtask.status === "To Do"}
+                                                >
+                                                  {subtask.status === "Pending"
+                                                    ? $t.taskStatus.pending
+                                                    : subtask.status === "To Do"
+                                                      ? $t.taskStatus.toDo
+                                                      : subtask.status === "In Progress"
+                                                        ? $t.taskStatus.inProgress
+                                                        : $t.taskStatus.done}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <div class="text-right whitespace-nowrap text-xs">
+                                              <p class="text-gray-600">{subtask.estimatedHours || 0}h</p>
+                                              {#if subtask.dueDate}
+                                                <p class="text-gray-500 mt-1">
+                                                  {dueDateLabel(subtask.dueDate)}
+                                                </p>
+                                              {/if}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      {/each}
+                                    </div>
+                                  {/if}
+                                </div>
+                              {/each}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    {/if}
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {:else}
+            <div class="text-center py-8">
+              <p class="text-gray-500">{$t.projects.noTeamMembers}</p>
+            </div>
+          {/if}
+        </div>
+      {/if}
 
       <!-- Tasks List -->
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -1157,7 +1417,7 @@
             </label>
 
             <div class="form-control w-full">
-              <span class="text-xl font-bold mb-4">{$t.common.status}</span>
+              <h3 class="text-xl font-bold mb-4">{$t.common.status}</h3>
               <input
                 type="text"
                 class="input input-bordered w-full"
@@ -1367,7 +1627,7 @@
             <h4 class="text-lg font-bold mb-3">
               {$t.projects.currentSubtasks} ({currentTaskSubtasks.length})
             </h4>
-            <div class="overflow-x-auto mb-6">
+            <div class="overflow-x-auto mb-4">
               <table class="table w-full">
                 <thead>
                   <tr>
@@ -1424,7 +1684,7 @@
 
           <button
             type="button"
-            class="btn btn-primary mb-6"
+            class="btn btn-primary mb-4"
             on:click={addTask}
             disabled={!newTask.title.trim() || !newTask.projectPhase}
           >
@@ -1477,7 +1737,7 @@
                       <td>{task.assignedTo || "-"}</td>
                       <td>
                         <span
-                          class="badge"
+                          class="badge h-auto min-h-8 px-3 py-1 whitespace-nowrap"
                           class:badge-neutral={task.status === "Pending"}
                           class:badge-success={task.status === "Done"}
                           class:badge-warning={task.status === "In Progress"}

@@ -59,7 +59,7 @@
   <td class="py-3 px-4 text-gray-600">{task.assignedTo || "-"}</td>
   <td class="py-3 px-4">
     <span
-      class="badge"
+      class="badge h-auto min-h-8 px-3 py-1 whitespace-nowrap"
       class:badge-neutral={task.status === "Pending"}
       class:badge-success={task.status === "Done"}
       class:badge-warning={task.status === "In Progress"}
@@ -114,7 +114,7 @@
       <td class="py-3 px-4 text-gray-600 text-sm">{subtask.assignedTo || "-"}</td>
       <td class="py-3 px-4">
         <span
-          class="badge badge-sm"
+          class="badge h-auto min-h-7 px-2 py-0.5 whitespace-nowrap text-xs"
           class:badge-neutral={subtask.status === "Pending"}
           class:badge-success={subtask.status === "Done"}
           class:badge-warning={subtask.status === "In Progress"}
