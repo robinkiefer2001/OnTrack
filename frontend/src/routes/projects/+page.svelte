@@ -47,6 +47,7 @@
   let customerFilter = "";
   let customerSearchText = "";
   let lastQueryFromUrl = "";
+  let lastNewProjectFromUrl = "";
   let projectManagers: string[] = [];
   let customers: string[] = [];
   let filteredProjects: Project[] = [];
@@ -137,6 +138,16 @@
     if (q !== lastQueryFromUrl) {
       projectFullTextSearch = q;
       lastQueryFromUrl = q;
+    }
+  }
+
+  $: {
+    const newProjectFlag = ($page.url.searchParams.get("new") || "").trim();
+    if (newProjectFlag !== lastNewProjectFromUrl) {
+      lastNewProjectFromUrl = newProjectFlag;
+      if (newProjectFlag === "1" && !showForm) {
+        newProject();
+      }
     }
   }
 

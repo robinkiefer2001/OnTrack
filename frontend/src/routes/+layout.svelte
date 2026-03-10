@@ -1,13 +1,12 @@
 <script lang="ts">
   import onTrackCorpFav from "$lib/assets/onTrackCorpFav.png";
   import "../app.css";
-  import { Chart } from 'chart.js';
-  import { onMount } from 'svelte';
   import { goto } from "$app/navigation";
   import { t } from "$lib/language";
   import { currentUser, getUserInitials, type CurrentUser } from "$lib/stores/userStore";
   import { customerEmployeeList } from "$lib/models/mockupData";
-  
+  import type { CustomerEmployee } from "$lib/models/project";
+
   let { children } = $props();
   let navSearch = $state("");
 
@@ -16,8 +15,17 @@
     goto(query ? `/projects?q=${encodeURIComponent(query)}` : "/projects");
   }
 
-  function switchUser(user: CurrentUser) {
-    currentUser.switchUser(user);
+  function switchUser(user: CurrentUser | CustomerEmployee) {
+    currentUser.switchUser({
+      employeeID: user.employeeID,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone ?? "",
+      jobTitle: user.jobTitle ?? "",
+      department: user.department ?? "",
+      customerID: user.customerID,
+    });
   }
 </script>
 
@@ -25,71 +33,80 @@
   <link rel="icon" href={onTrackCorpFav} />
 </svelte:head>
 
-<h1 class="stileTitle">
-  <img src={onTrackCorpFav} alt="OnTrack Logo" class="corpTitleLogo" /> OnTrack
-</h1>
-<div class="navbar shadow-sm navdesigne" data-theme="aqua">
-  <div class="flex-1">
-  <label for="my-drawer-4" aria-label="open sidebar" class="btn btn-square btn-ghost"></label>
-  </div>
-  <div class="flex gap-2">
-    <input
-      type="text"
-      placeholder={$t.common.search}
-      class="input input-bordered w-24 md:w-auto"
-      bind:value={navSearch}
-      onkeydown={(e) => {
-        if (e.key === "Enter") runGlobalSearch();
-      }}
-    />
-  </div>
-</div>
-<div class="divMainSplit">
-  <div class="divSideBar">
-    <ul class="menu bg-base-200 w-56 rounded-box ulSideBar" >
-      <li class="items-center item dropdown dropdown-bottom dropdown-end">
+<nav class="sticky top-0 z-40 w-full border-b border-gray-200 bg-white">
+  <div class="mx-auto flex h-16 items-center gap-6 px-6">
+
+    <!-- Logo -->
+    <a href="/" class="flex shrink-0 items-center gap-2.5 text-base font-semibold text-gray-900">
+      <img src={onTrackCorpFav} alt="OnTrack Logo" class="h-7 w-7" />
+      OnTrack
+    </a>
+
+    <!-- Nav links -->
+    <div class="flex gap-1 text-sm font-medium text-gray-600">
+      <a href="/" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.home}</a>
+      <a href="/projects" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.projects}</a>
+      <a href="/customers" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.customers}</a>
+      <a href="/employees" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.employees}</a>
+      <a href="/tasks" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.tasks}</a>
+      <a href="/admin" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.admin}</a>
+    </div>
+
+    <!-- Right side -->
+    <div class="ml-auto flex items-center gap-3">
+
+      <!-- Search -->
+      <input
+        type="text"
+        placeholder={$t.common.search}
+        class="w-36 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 transition focus:w-52 focus:border-blue-300 focus:bg-white"
+        bind:value={navSearch}
+        onkeydown={(e) => { if (e.key === "Enter") runGlobalSearch(); }}
+      />
+
+      <!-- User dropdown -->
+      <div class="dropdown dropdown-end dropdown-bottom">
         <div
           tabindex="0"
           role="button"
-          class="avatar avatar-placeholder bg-neutral text-neutral-content w-24 h-24 rounded-full mb-2 cursor-pointer hover:opacity-80 transition"
+          class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700 transition hover:bg-blue-200"
         >
-          <span class="text-3xl items-center ml-1.5">{getUserInitials($currentUser.firstName, $currentUser.lastName)}</span>
+          {getUserInitials($currentUser.firstName, $currentUser.lastName)}
         </div>
-        <div tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-96">
-          <div class="px-4 py-2 border-b">
-            <p class="font-semibold text-sm">{$currentUser.firstName} {$currentUser.lastName}</p>
+        <div class="dropdown-content z-50 mt-2 w-80 rounded-2xl border border-gray-200 bg-white p-2 shadow-lg">
+          <div class="border-b border-gray-100 px-3 py-2">
+            <p class="text-sm font-semibold text-gray-900">{$currentUser.firstName} {$currentUser.lastName}</p>
             <p class="text-xs text-gray-600">{$currentUser.jobTitle}</p>
             <p class="text-xs text-gray-500">{$currentUser.email}</p>
           </div>
-          <div class="divider my-1"></div>
-          <div class="px-4 py-2">
-            <p class="text-xs font-semibold text-gray-700 mb-2">DEVELOPMENT: Switch User</p>
-            <div class="max-h-64 overflow-y-auto">
+          <div class="mt-2 px-1">
+            <p class="mb-2 px-2 text-xs font-semibold uppercase tracking-widest text-gray-400">Switch User</p>
+            <div class="max-h-64 space-y-0.5 overflow-y-auto">
               {#each customerEmployeeList as employee (employee.employeeID)}
                 {#if employee.employeeID !== $currentUser.employeeID}
                   <button
                     onclick={() => switchUser(employee)}
-                    class="w-full text-left px-3 py-2 rounded hover:bg-base-300 transition text-sm"
+                    class="w-full rounded-xl px-3 py-2 text-left text-sm transition hover:bg-gray-100"
                   >
                     <div class="flex items-center gap-2">
-                      <div class="avatar avatar-placeholder bg-primary text-white w-6 h-6 rounded-full">
-                        <span class="text-xs">{getUserInitials(employee.firstName, employee.lastName)}</span>
+                      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                        {getUserInitials(employee.firstName, employee.lastName)}
                       </div>
                       <div>
-                        <p class="font-medium">{employee.firstName} {employee.lastName}</p>
-                        <p class="text-xs text-gray-600">{employee.department}</p>
+                        <p class="font-medium text-gray-900">{employee.firstName} {employee.lastName}</p>
+                        <p class="text-xs text-gray-500">{employee.department}</p>
                       </div>
                     </div>
                   </button>
                 {:else}
-                  <div class="w-full text-left px-3 py-2 rounded bg-primary text-white text-sm">
+                  <div class="rounded-xl bg-blue-50 px-3 py-2 text-sm">
                     <div class="flex items-center gap-2">
-                      <div class="avatar avatar-placeholder bg-white text-primary w-6 h-6 rounded-full">
-                        <span class="text-xs">{getUserInitials(employee.firstName, employee.lastName)}</span>
+                      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+                        {getUserInitials(employee.firstName, employee.lastName)}
                       </div>
                       <div>
-                        <p class="font-medium">{employee.firstName} {employee.lastName}</p>
-                        <p class="text-xs opacity-90">Current User</p>
+                        <p class="font-medium text-blue-900">{employee.firstName} {employee.lastName}</p>
+                        <p class="text-xs text-blue-600">Current User</p>
                       </div>
                     </div>
                   </div>
@@ -97,20 +114,17 @@
               {/each}
             </div>
           </div>
+          <div class="mt-2 grid grid-cols-2 gap-1 border-t border-gray-100 px-1 pt-2">
+            <a href="/myprofile" class="rounded-xl px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100">{$t.nav.myProfile}</a>
+            <a href="/settings" class="rounded-xl px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100">{$t.nav.settings}</a>
+          </div>
         </div>
-      </li>
-      <li><a href="./">{$t.nav.home}</a></li>
-      <li><a href="projects">{$t.nav.projects}</a></li>
-      <li><a href="customers">{$t.nav.customers}</a></li>
-      <li><a href="employees">{$t.nav.employees}</a></li>
-      <li><a href="tasks">{$t.nav.tasks}</a></li>
-      <li><a href="myprofile">{$t.nav.myProfile}</a></li>
-      <li><a href="settings">{$t.nav.settings}</a></li>
-      <li><a href="admin">{$t.nav.admin}</a></li>
-    </ul>
-  </div>
+      </div>
 
-  <div class="divMain">
-  {@render children()}
+    </div>
   </div>
-</div>
+</nav>
+
+<main>
+  {@render children()}
+</main>

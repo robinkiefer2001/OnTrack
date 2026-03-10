@@ -32,6 +32,7 @@ export interface Translations {
     hours: string;
     percent: string;
     cost: string;
+    days: string;
     expand: string;
     collapse: string;
   };
@@ -191,5 +192,33 @@ export interface Translations {
   home: {
     welcome: string;
     description: string;
+    title: string;
+    subtitle: string;
+    activeProjects: string;
+    overdueItems: string;
+    dueThisWeek: string;
+    assignedBudget: string;
+    completionRate: string;
+    workloadStatus: string;
+    nextAssignments: string;
+    noAssignments: string;
+    projectHealth: string;
+    noProjects: string;
+    quickActions: string;
+    openProjects: string;
+    createProject: string;
+    manageRates: string;
+    openSettings: string;
+    dueToday: string;
+    dueInDays: string;
+    overdueByDays: string;
+    healthyPortfolio: string;
+    needsAttention: string;
+    itemTypeTask: string;
+    itemTypeSubtask: string;
+    assignedHours: string;
+    openItems: string;
+    focus: string;
+    currentAssignments: string;
   };
 }

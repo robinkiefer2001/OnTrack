@@ -23,9 +23,9 @@
       </div>
 
       <!-- Assigned Budget -->
-      <div class="border-l-4 border-purple-500 pl-4">
+      <div class="border-l-4 border-green-500 pl-4">
         <p class="text-sm text-gray-600 mb-1">{$t.projects.assignedBudget}</p>
-        <p class="text-3xl font-bold text-purple-600">{formatBudget(summary.assignedBudget)}</p>
+        <p class="text-3xl font-bold text-green-600">{formatBudget(summary.assignedBudget)}</p>
         <p class="text-xs text-gray-500 mt-1">
           {summary.percentageUsed.toFixed(1)}% {$t.projects.ofBudget}
         </p>
@@ -47,14 +47,12 @@
           {formatBudget(summary.totalCost)} / {formatBudget(project.budget)}
         </p>
       </div>
-      <div class="w-full bg-gray-200 rounded-full h-4">
+      <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
         <div
           class={`h-4 rounded-full transition-all ${
             summary.percentageUsed > 100
               ? "bg-red-600"
-              : summary.percentageUsed > 80
-                ? "bg-yellow-400"
-                : "bg-green-500"
+              : "bg-green-500"
           }`}
           style={`width: ${Math.min(summary.percentageUsed, 100)}%`}
         ></div>

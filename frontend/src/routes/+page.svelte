@@ -1,368 +1,622 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import {
-        Chart,
-        DoughnutController,
-        ArcElement,
-        Tooltip,
-        Legend,
-        BarController,
-        CategoryScale,
-        LinearScale,
-        type ChartData,
-    } from "chart.js";
 
-    import type { Project } from "$lib/models/project";
+    import { getHourlyRate, loadHourlyRates } from "$lib/models/hourlyRates";
     import { projectList } from "$lib/models/mockupData";
+    import type { Project, Task } from "$lib/models/project";
+    import {
+        dueDateLabel,
+        formatBudget,
+        getCurrentPhase,
+        getProjectBudgetSummary,
+        isProjectOnTrack,
+    } from "$lib/features/projects/projectUtils";
+    import { t } from "$lib/language";
     import { currentUser, getUserInitials } from "$lib/stores/userStore";
 
-    Chart.register(DoughnutController, BarController, ArcElement, CategoryScale, LinearScale, Tooltip, Legend);
+    type WorkStatus = Task["status"];
 
-    let workloadCanvas!: HTMLCanvasElement;
-    let projectsCanvas!: HTMLCanvasElement;
-    let workloadChart: Chart | null = null;
-    let projectsChart: Chart | null = null;
-    let projects: Project[] = [];
-    let userProjects: Project[] = [];
+    type Assignment = {
+        id: string;
+        kind: "task" | "subtask";
+        title: string;
+        projectTitle: string;
+        status: WorkStatus;
+        dueDate: Date | null;
+        estimatedHours: number;
+        cost: number;
+        isOverdue: boolean;
+        isDueSoon: boolean;
+    };
+
+    type ProjectSnapshot = {
+        project: Project;
+        phase: string;
+        budgetUsage: number;
+        reserveBudget: number;
+        openItems: number;
+        overdueItems: number;
+        dueDate: Date | null;
+        onTrack: boolean;
+    };
+
+    let projects = $state<Project[]>([]);
+    let userProjects = $state<Project[]>([]);
+    let assignments = $state<Assignment[]>([]);
+    let priorityAssignments = $state<Assignment[]>([]);
+    let projectSnapshots = $state<ProjectSnapshot[]>([]);
+    let hourlyRates = $state(loadHourlyRates());
+    let statusCounts = $state<Record<WorkStatus, number>>({
+        Pending: 0,
+        "To Do": 0,
+        "In Progress": 0,
+        Done: 0,
+    });
 
     function getFullName(firstName: string, lastName: string): string {
         return `${firstName} ${lastName}`;
     }
 
-    function isAssignedToCurrentUser(project: Project, assignedTo: string): boolean {
+    function normalizeDate(value: Date | null): Date | null {
+        if (!value) return null;
+        const normalized = new Date(value);
+        normalized.setHours(0, 0, 0, 0);
+        return normalized;
+    }
+
+    function getStatusCounts(items: Assignment[]): Record<WorkStatus, number> {
+        return items.reduce(
+            (counts, item) => {
+                counts[item.status] += 1;
+                return counts;
+            },
+            {
+                Pending: 0,
+                "To Do": 0,
+                "In Progress": 0,
+                Done: 0,
+            } as Record<WorkStatus, number>,
+        );
+    }
+
+    function filterUserProjects(allProjects: Project[]): Project[] {
         const userName = getFullName($currentUser.firstName, $currentUser.lastName);
-        const sameCompany = project.customerID === $currentUser.customerID;
-        return sameCompany && assignedTo === userName;
-    }
 
-    function getAssignedItemsForProject(project: Project, userName: string) {
-        const assignedTasks =
-            project.Tasks?.filter(
-                (task) => task.assignedTo === userName && project.customerID === $currentUser.customerID,
-            ) ?? [];
-        const assignedSubtasks =
-            project.Tasks?.flatMap((task) =>
-                (task.subtasks ?? []).filter(
-                    (subtask) =>
-                        subtask.assignedTo === userName && project.customerID === $currentUser.customerID,
-                ),
-            ) ?? [];
-
-        return { assignedTasks, assignedSubtasks };
-    }
-
-    function filterUserProjects(allProjects: Project[], user: typeof $currentUser): Project[] {
-        const userName = getFullName(user.firstName, user.lastName);
         return allProjects.filter((project) => {
-            const { assignedTasks, assignedSubtasks } = getAssignedItemsForProject(project, userName);
-            return assignedTasks.length > 0 || assignedSubtasks.length > 0;
+            if (project.customerID !== $currentUser.customerID) return false;
+
+            return (project.Tasks || []).some(
+                (task) =>
+                    task.assignedTo === userName ||
+                    (task.subtasks || []).some((subtask) => subtask.assignedTo === userName),
+            );
         });
     }
 
-    function getUserWorkload(projects: Project[], user: typeof $currentUser) {
-        const userName = getFullName(user.firstName, user.lastName);
-        let totalHours = 0;
-        let completedHours = 0;
+    function collectAssignments(project: Project, userName: string): Assignment[] {
+        const today = normalizeDate(new Date());
+        const nextWeek = today ? new Date(today) : null;
+        nextWeek?.setDate(nextWeek.getDate() + 7);
 
-        projects.forEach((project) => {
-            const { assignedTasks, assignedSubtasks } = getAssignedItemsForProject(project, userName);
+        return (project.Tasks || []).flatMap((task) => {
+            const items: Assignment[] = [];
 
-            assignedTasks.forEach((task) => {
-                totalHours += task.estimatedHours || 0;
-                if (task.status === "Done") {
-                    completedHours += task.estimatedHours || 0;
-                }
+            if (task.assignedTo === userName) {
+                const dueDate = normalizeDate(task.dueDate);
+                const estimatedHours = task.estimatedHours || 0;
+                const cost = estimatedHours * getHourlyRate(task.hourlyRateType, hourlyRates);
+
+                items.push({
+                    id: `task-${project.projectID}-${task.taskID}`,
+                    kind: "task",
+                    title: task.title,
+                    projectTitle: project.title,
+                    status: task.status,
+                    dueDate,
+                    estimatedHours,
+                    cost,
+                    isOverdue: Boolean(dueDate && today && task.status !== "Done" && dueDate < today),
+                    isDueSoon: Boolean(
+                        dueDate &&
+                            today &&
+                            nextWeek &&
+                            task.status !== "Done" &&
+                            dueDate >= today &&
+                            dueDate <= nextWeek,
+                    ),
+                });
+            }
+
+            (task.subtasks || []).forEach((subtask) => {
+                if (subtask.assignedTo !== userName) return;
+
+                const dueDate = normalizeDate(subtask.dueDate);
+                const estimatedHours = subtask.estimatedHours || 0;
+                const cost = estimatedHours * getHourlyRate(subtask.hourlyRateType, hourlyRates);
+
+                items.push({
+                    id: `subtask-${project.projectID}-${task.taskID}-${subtask.subtaskID}`,
+                    kind: "subtask",
+                    title: `${task.title} / ${subtask.title}`,
+                    projectTitle: project.title,
+                    status: subtask.status,
+                    dueDate,
+                    estimatedHours,
+                    cost,
+                    isOverdue: Boolean(dueDate && today && subtask.status !== "Done" && dueDate < today),
+                    isDueSoon: Boolean(
+                        dueDate &&
+                            today &&
+                            nextWeek &&
+                            subtask.status !== "Done" &&
+                            dueDate >= today &&
+                            dueDate <= nextWeek,
+                    ),
+                });
             });
 
-            assignedSubtasks.forEach((subtask) => {
-                totalHours += subtask.estimatedHours || 0;
-                if (subtask.status === "Done") {
-                    completedHours += subtask.estimatedHours || 0;
-                }
-            });
+            return items;
         });
-
-        return {
-            totalHours,
-            completedHours,
-            remainingHours: Math.max(0, totalHours - completedHours),
-        };
     }
 
-    function getWorkItemStatusCounts(projects: Project[], user: typeof $currentUser) {
-        const userName = getFullName(user.firstName, user.lastName);
-        const counts: Record<string, number> = {
-            "To Do": 0,
-            "In Progress": 0,
-            Pending: 0,
-            Done: 0,
-        };
-
-        projects.forEach((project) => {
-            const { assignedTasks, assignedSubtasks } = getAssignedItemsForProject(project, userName);
-
-            assignedTasks.forEach((task) => {
-                counts[task.status] = (counts[task.status] || 0) + 1;
-            });
-
-            assignedSubtasks.forEach((subtask) => {
-                counts[subtask.status] = (counts[subtask.status] || 0) + 1;
-            });
-        });
-
-        return counts;
-    }
-
-    function getOpenWorkItemsCount(): number {
-        const statusCounts = getWorkItemStatusCounts(userProjects, $currentUser);
-        return (statusCounts["To Do"] || 0) + (statusCounts["In Progress"] || 0) + (statusCounts.Pending || 0);
-    }
-
-    function getActiveProjectsCount() {
+    function buildProjectSnapshots(items: Project[]): ProjectSnapshot[] {
         const userName = getFullName($currentUser.firstName, $currentUser.lastName);
+        const today = normalizeDate(new Date());
 
-        return userProjects.filter((project) => {
-            const { assignedTasks, assignedSubtasks } = getAssignedItemsForProject(project, userName);
-            const allAssignedItems = [...assignedTasks, ...assignedSubtasks];
+        return items
+            .map((project) => {
+                const summary = getProjectBudgetSummary(project, hourlyRates);
+                const relevantItems = collectAssignments(project, userName);
+                const openItems = relevantItems.filter((item) => item.status !== "Done").length;
+                const overdueItems = relevantItems.filter((item) => item.isOverdue).length;
 
-            if (allAssignedItems.length === 0) return false;
-            return allAssignedItems.some((item) => item.status !== "Done");
-        }).length;
+                return {
+                    project,
+                    phase: getCurrentPhase(project) ?? "-",
+                    budgetUsage: summary.percentageUsed,
+                    reserveBudget: summary.reserveBudget,
+                    openItems,
+                    overdueItems,
+                    dueDate: project.dueDate ? new Date(project.dueDate) : null,
+                    onTrack: isProjectOnTrack(project) && overdueItems === 0,
+                };
+            })
+            .sort((left, right) => {
+                if (left.overdueItems !== right.overdueItems) {
+                    return right.overdueItems - left.overdueItems;
+                }
+                if (left.onTrack !== right.onTrack) {
+                    return left.onTrack ? 1 : -1;
+                }
+                return (right.budgetUsage || 0) - (left.budgetUsage || 0);
+            });
     }
 
-    function initCharts() {
-        const workload = getUserWorkload(userProjects, $currentUser);
+    function buildDashboard() {
+        hourlyRates = loadHourlyRates();
+        userProjects = filterUserProjects(projects);
 
-        if (workloadChart) {
-            workloadChart.destroy();
-            workloadChart = null;
-        }
+        const userName = getFullName($currentUser.firstName, $currentUser.lastName);
+        assignments = userProjects.flatMap((project) => collectAssignments(project, userName));
+        statusCounts = getStatusCounts(assignments);
 
-        if (projectsChart) {
-            projectsChart.destroy();
-            projectsChart = null;
-        }
+        priorityAssignments = assignments
+            .filter((item) => item.status !== "Done")
+            .sort((left, right) => {
+                if (left.isOverdue !== right.isOverdue) return left.isOverdue ? -1 : 1;
+                if (left.isDueSoon !== right.isDueSoon) return left.isDueSoon ? -1 : 1;
+                if (left.dueDate && right.dueDate) return left.dueDate.getTime() - right.dueDate.getTime();
+                if (left.dueDate) return -1;
+                if (right.dueDate) return 1;
+                return right.estimatedHours - left.estimatedHours;
+            })
+            .slice(0, 6);
 
-        if (workloadCanvas) {
-            const workloadData: ChartData<"doughnut"> = {
-                labels: ["Completed Hours", "Remaining Hours"],
-                datasets: [
-                    {
-                        label: "Workload",
-                        data: [workload.completedHours, workload.remainingHours],
-                        backgroundColor: ["#86efac", "#60a5fa"],
-                        hoverOffset: 4,
-                    },
-                ],
-            };
-
-            workloadChart = new Chart(workloadCanvas, {
-                type: "doughnut",
-                data: workloadData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    cutout: "60%",
-                    plugins: {
-                        legend: {
-                            position: "bottom",
-                        },
-                    },
-                },
-            });
-        }
-
-        if (projectsCanvas) {
-            const statusCounts = getWorkItemStatusCounts(userProjects, $currentUser);
-
-            projectsChart = new Chart(projectsCanvas, {
-                type: "bar",
-                data: {
-                    labels: Object.keys(statusCounts),
-                    datasets: [
-                        {
-                            label: "Your Work Items by Status",
-                            data: Object.values(statusCounts),
-                            backgroundColor: ["#93c5fd", "#fbbf24", "#f87171", "#86efac"],
-                            borderRadius: 5,
-                        },
-                    ],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: "bottom",
-                        },
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1,
-                            },
-                        },
-                    },
-                },
-            });
-        }
+        projectSnapshots = buildProjectSnapshots(userProjects).slice(0, 5);
     }
+
+    function getOpenItemsCount(): number {
+        return assignments.filter((item) => item.status !== "Done").length;
+    }
+
+    function getOverdueCount(): number {
+        return assignments.filter((item) => item.isOverdue).length;
+    }
+
+    function getDueSoonCount(): number {
+        return assignments.filter((item) => item.isDueSoon).length;
+    }
+
+    function getAssignedHours(): number {
+        return assignments.reduce((sum, item) => sum + item.estimatedHours, 0);
+    }
+
+    function getAssignedBudgetTotal(): number {
+        return assignments.reduce((sum, item) => sum + item.cost, 0);
+    }
+
+    function getCompletionRate(): number {
+        if (assignments.length === 0) return 0;
+        const completedItems = assignments.filter((item) => item.status === "Done").length;
+        return (completedItems / assignments.length) * 100;
+    }
+
+    function getPortfolioHealth(): number {
+        if (userProjects.length === 0) return 0;
+        const healthyProjects = projectSnapshots.filter((project) => project.onTrack).length;
+        return (healthyProjects / userProjects.length) * 100;
+    }
+
+    function getStatusLabel(status: WorkStatus): string {
+        if (status === "To Do") return $t.taskStatus.toDo;
+        if (status === "In Progress") return $t.taskStatus.inProgress;
+        if (status === "Done") return $t.taskStatus.done;
+        return $t.taskStatus.pending;
+    }
+
+    function getStatusClasses(status: WorkStatus): string {
+        if (status === "Done") return "bg-green-100 text-green-700";
+        if (status === "In Progress") return "bg-orange-100 text-orange-700";
+        if (status === "To Do") return "bg-blue-100 text-blue-700";
+        return "bg-gray-200 text-gray-700";
+    }
+
+    function getProjectTone(project: ProjectSnapshot): string {
+        if (project.overdueItems > 0 || project.budgetUsage > 100) return "border-red-200 bg-red-50/80";
+        if (!project.onTrack || project.budgetUsage > 80) return "border-orange-200 bg-orange-50/80";
+        return "border-gray-200 bg-white";
+    }
+
+    function getProjectIndicator(project: ProjectSnapshot): string {
+        if (project.overdueItems > 0 || project.budgetUsage > 100) return "bg-red-500";
+        if (!project.onTrack || project.budgetUsage > 80) return "bg-orange-500";
+        return "bg-green-500";
+    }
+
+    function getTimelineLabel(item: Assignment): string {
+        if (!item.dueDate) return "-";
+
+        const today = normalizeDate(new Date());
+        if (!today) return dueDateLabel(item.dueDate);
+
+        const diff = Math.round((item.dueDate.getTime() - today.getTime()) / 86400000);
+        if (diff < 0) return `${$t.home.overdueByDays} ${Math.abs(diff)}`;
+        if (diff === 0) return $t.home.dueToday;
+        return `${$t.home.dueInDays} ${diff}`;
+    }
+
+    function getWorkloadWidth(count: number): string {
+        if (assignments.length === 0) return "0%";
+        return `${(count / assignments.length) * 100}%`;
+    }
+
+    function formatHours(hours: number): string {
+        if (hours < 24) return `${hours.toFixed(1)}h`;
+        return `${(hours / 8).toFixed(1)} ${$t.common.days} (${hours.toFixed(0)}h)`;
+    }
+
+    const unsubscribe = projectList.subscribe((value) => {
+        projects = value;
+        buildDashboard();
+    });
 
     $effect(() => {
-        if (projects.length > 0) {
-            userProjects = filterUserProjects(projects, $currentUser);
-            initCharts();
-        }
+        buildDashboard();
     });
 
     onMount(() => {
-        const unsubscribe = projectList.subscribe((value) => {
-            projects = value;
-            userProjects = filterUserProjects(projects, $currentUser);
-            initCharts();
-        });
-
         return () => {
             unsubscribe();
-            workloadChart?.destroy();
-            projectsChart?.destroy();
         };
     });
-
-    function getProjectsCount() {
-        return userProjects.length;
-    }
-
-    function getTotalBudget() {
-        return userProjects.reduce((sum, p) => sum + p.budget, 0);
-    }
-
-    function getUserAssignedHours() {
-        let totalHours = 0;
-
-        userProjects.forEach((project) => {
-            project.Tasks?.forEach((task) => {
-                if (isAssignedToCurrentUser(project, task.assignedTo)) {
-                    totalHours += task.estimatedHours || 0;
-                }
-
-                task.subtasks?.forEach((subtask) => {
-                    if (isAssignedToCurrentUser(project, subtask.assignedTo)) {
-                        totalHours += subtask.estimatedHours || 0;
-                    }
-                });
-            });
-        });
-
-        return totalHours;
-    }
-
-    function formatCurrency(value: number): string {
-        return `CHF ${(value / 1000).toFixed(0)}k`;
-    }
 </script>
 
-<div class="flex flex-col gap-6 p-6">
-    <!-- Header with user info -->
-    <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <div class="avatar placeholder">
-                    <div class="bg-neutral-focus text-neutral-content rounded-full w-16">
-                        <span class="text-2xl font-semibold">{getUserInitials($currentUser.firstName, $currentUser.lastName)}</span>
+<div class="min-h-screen bg-gray-50">
+    <div class="mx-auto flex max-w-7xl flex-col gap-6 p-6">
+        <section class="overflow-hidden rounded-4xl border border-gray-200 bg-white shadow-sm">
+            <div class="grid gap-6 p-6 lg:grid-cols-[1.5fr_0.9fr] lg:p-8">
+                <div class="flex items-start gap-4">
+                    <div class="flex h-18 w-18 shrink-0 items-center justify-center rounded-3xl bg-blue-100 text-2xl font-semibold text-blue-600">
+                        {getUserInitials($currentUser.firstName, $currentUser.lastName)}
+                    </div>
+                    <div class="space-y-3">
+                        <p class="text-sm uppercase tracking-[0.24em] text-blue-600">{$t.home.title}</p>
+                        <div>
+                            <h1 class="text-3xl font-bold tracking-tight text-gray-900 lg:text-4xl">
+                                {$currentUser.firstName} {$currentUser.lastName}
+                            </h1>
+                            <p class="mt-2 max-w-2xl text-sm text-gray-600 lg:text-base">{$t.home.subtitle}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-3 text-sm text-gray-700">
+                            <span class="rounded-full border border-gray-200 bg-blue-50 px-3 py-1.5 text-blue-700">{$currentUser.jobTitle}</span>
+                            <span class="rounded-full border border-gray-200 bg-purple-50 px-3 py-1.5 text-purple-700">{$currentUser.department}</span>
+                            <span class="rounded-full border border-gray-200 bg-gray-100 px-3 py-1.5 text-gray-700">{$currentUser.email}</span>
+                        </div>
                     </div>
                 </div>
-                <div>
-                    <h1 class="text-3xl font-bold">{$currentUser.firstName} {$currentUser.lastName}</h1>
-                    <p class="text-blue-100">{$currentUser.jobTitle}</p>
-                    <p class="text-sm text-blue-200">{$currentUser.email}</p>
+
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                    <div class="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.2em] text-blue-600">{$t.home.completionRate}</p>
+                                <div class="mt-3 flex items-end justify-between gap-4">
+                                    <p class="text-4xl font-bold text-gray-900">{getCompletionRate().toFixed(0)}%</p>
+                                    <p class="text-sm text-gray-600">{$t.home.currentAssignments}: {assignments.length}</p>
+                                </div>
+                            </div>
+                            <div class="rounded-full bg-blue-100 p-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.2em] text-green-600">{$t.home.healthyPortfolio}</p>
+                                <div class="mt-3 flex items-end justify-between gap-4">
+                                    <p class="text-4xl font-bold text-gray-900">{getPortfolioHealth().toFixed(0)}%</p>
+                                    <p class="text-sm text-gray-600">{$t.home.activeProjects}: {userProjects.length}</p>
+                                </div>
+                            </div>
+                            <div class="rounded-full bg-green-100 p-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622C17.176 19.29 21 14.591 21 9c0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="text-right">
-                <p class="text-sm text-blue-100">Department</p>
-                <p class="text-xl font-semibold">{$currentUser.department}</p>
-            </div>
-        </div>
-    </div>
+        </section>
 
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="stats shadow bg-white rounded-lg">
-            <div class="stat">
-                <div class="stat-title text-sm">Your Projects</div>
-                <div class="stat-value text-3xl">{getProjectsCount()}</div>
-                <div class="stat-desc">Assigned to you</div>
-            </div>
-        </div>
+        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">{$t.home.activeProjects}</p>
+                        <div class="mt-3 flex items-end gap-3">
+                            <p class="text-4xl font-bold text-gray-900">{userProjects.length}</p>
+                            <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">{$t.home.openItems}: {getOpenItemsCount()}</span>
+                        </div>
+                    </div>
+                    <div class="rounded-full bg-blue-100 p-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M6 11h12M9 15h6M4 21h16a1 1 0 001-1V4a1 1 0 00-1-1H4a1 1 0 00-1 1v16a1 1 0 001 1z" />
+                        </svg>
+                    </div>
+                </div>
+            </article>
 
-        <div class="stats shadow bg-white rounded-lg">
-            <div class="stat">
-                <div class="stat-title text-sm">Active Projects</div>
-                <div class="stat-value text-3xl text-green-500">{getActiveProjectsCount()}</div>
-                <div class="stat-desc">In progress</div>
-            </div>
-        </div>
+            <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">{$t.home.overdueItems}</p>
+                        <div class="mt-3 flex items-end gap-3">
+                            <p class="text-4xl font-bold text-red-700">{getOverdueCount()}</p>
+                            <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">{$t.home.focus}</span>
+                        </div>
+                    </div>
+                    <div class="rounded-full bg-red-100 p-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-7.938 4h15.876c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L2.33 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                </div>
+            </article>
 
-        <div class="stats shadow bg-white rounded-lg">
-            <div class="stat">
-                <div class="stat-title text-sm">Open Work Items</div>
-                <div class="stat-value text-3xl">{getOpenWorkItemsCount()}</div>
-                <div class="stat-desc">To do and in progress</div>
-            </div>
-        </div>
+            <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">{$t.home.dueThisWeek}</p>
+                        <div class="mt-3 flex items-end gap-3">
+                            <p class="text-4xl font-bold text-orange-700">{getDueSoonCount()}</p>
+                            <span class="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">{$t.home.nextAssignments}</span>
+                        </div>
+                    </div>
+                    <div class="rounded-full bg-orange-100 p-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                </div>
+            </article>
 
-        <div class="stats shadow bg-white rounded-lg">
-            <div class="stat">
-                <div class="stat-title text-sm">Total Assigned Hours</div>
-                <div class="stat-value text-3xl">{getUserAssignedHours()}</div>
-                <div class="stat-desc">Tasks and subtasks</div>
-            </div>
-        </div>
-    </div>
+            <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p class="text-sm font-medium text-gray-500">{$t.home.assignedBudget}</p>
+                <p class="mt-2 text-2xl font-semibold text-gray-900">{formatBudget(getAssignedBudgetTotal())}</p>
+                <p class="mt-1 text-sm text-gray-500">{formatHours(getAssignedHours())}</p>
+            </article>
+        </section>
 
-    <!-- Charts Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Workload Chart -->
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold mb-4 text-gray-800">Your Workload</h2>
-            <div class="flex justify-center">
-                <canvas bind:this={workloadCanvas} width="200" height="200"></canvas>
-            </div>
-        </div>
+        <section class="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-900">{$t.home.workloadStatus}</h2>
+                        <p class="mt-1 text-sm text-gray-500">{$t.home.currentAssignments}: {assignments.length}</p>
+                    </div>
+                    <p class="text-3xl font-bold text-purple-600">{getCompletionRate().toFixed(0)}%</p>
+                </div>
 
-        <!-- Projects by Status Chart -->
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold mb-4 text-gray-800">Your Work Items by Status</h2>
-            <div class="flex justify-center">
-                <canvas bind:this={projectsCanvas} width="300" height="200"></canvas>
-            </div>
-        </div>
-    </div>
+                <div class="mt-5 h-3 overflow-hidden rounded-full bg-gray-200">
+                    <div class="flex h-full w-full overflow-hidden rounded-full">
+                        <div class="bg-gray-400" style={`width: ${getWorkloadWidth(statusCounts.Pending)}`}></div>
+                        <div class="bg-blue-500" style={`width: ${getWorkloadWidth(statusCounts["To Do"])}`}></div>
+                        <div class="bg-orange-400" style={`width: ${getWorkloadWidth(statusCounts["In Progress"])}`}></div>
+                        <div class="bg-green-500" style={`width: ${getWorkloadWidth(statusCounts.Done)}`}></div>
+                    </div>
+                </div>
 
-    <!-- Quick Actions -->
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-semibold mb-4 text-gray-800">Quick Actions</h2>
-        <div class="flex gap-3 flex-wrap">
-            <a href="/projects" class="btn btn-primary">
-                View All Projects
-            </a>
-            <a href="/projects" class="btn btn-secondary">
-                New Project
-            </a>
-            <a href="/admin" class="btn btn-outline">
-                Manage Fees
-            </a>
-            <a href="/settings" class="btn btn-outline">
-                Settings
-            </a>
-        </div>
-    </div>
+                <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-2xl bg-gray-100 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">{$t.taskStatus.pending}</p>
+                        <p class="mt-2 text-2xl font-bold text-gray-900">{statusCounts.Pending}</p>
+                    </div>
+                    <div class="rounded-2xl bg-blue-100 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">{$t.taskStatus.toDo}</p>
+                        <p class="mt-2 text-2xl font-bold text-blue-800">{statusCounts["To Do"]}</p>
+                    </div>
+                    <div class="rounded-2xl bg-orange-100 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">{$t.taskStatus.inProgress}</p>
+                        <p class="mt-2 text-2xl font-bold text-orange-800">{statusCounts["In Progress"]}</p>
+                    </div>
+                    <div class="rounded-2xl bg-green-100 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-green-700">{$t.taskStatus.done}</p>
+                        <p class="mt-2 text-2xl font-bold text-green-800">{statusCounts.Done}</p>
+                    </div>
+                </div>
+            </article>
 
-    <!-- Development Info -->
-    <div class="alert alert-info shadow-md">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-        <span><strong>Your Dashboard:</strong> This dashboard shows your personalized data - projects you're assigned to, your workload, and task completion status. Switch users from the sidebar avatar to see everyone's dashboard.</span>
+            <article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-semibold text-gray-900">{$t.home.quickActions}</h2>
+                <div class="mt-5 grid gap-3">
+                    <a href="/projects" class="rounded-2xl border border-gray-200 bg-white px-4 py-4 text-sm font-semibold text-gray-900 transition hover:border-gray-300 hover:bg-gray-50">
+                        {$t.home.openProjects}
+                    </a>
+                    <a href="/projects?new=1" class="rounded-2xl border border-gray-200 bg-white px-4 py-4 text-sm font-semibold text-gray-900 transition hover:border-gray-300 hover:bg-gray-50">
+                        {$t.home.createProject}
+                    </a>
+                    <a href="/admin" class="rounded-2xl border border-gray-200 bg-white px-4 py-4 text-sm font-semibold text-gray-900 transition hover:border-gray-300 hover:bg-gray-50">
+                        {$t.home.manageRates}
+                    </a>
+                    <a href="/settings" class="rounded-2xl border border-gray-200 bg-white px-4 py-4 text-sm font-semibold text-gray-900 transition hover:border-gray-300 hover:bg-gray-50">
+                        {$t.home.openSettings}
+                    </a>
+                </div>
+            </article>
+        </section>
+
+        <section class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-900">{$t.home.nextAssignments}</h2>
+                        <p class="mt-1 text-sm text-gray-500">{$t.home.focus}</p>
+                    </div>
+                    <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">{priorityAssignments.length}</span>
+                </div>
+
+                {#if priorityAssignments.length > 0}
+                    <div class="mt-5 space-y-3">
+                        {#each priorityAssignments as item (item.id)}
+                            <div class="rounded-2xl border border-gray-200 p-4 transition hover:border-blue-200 hover:bg-gray-50">
+                                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div class="space-y-2">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(item.status)}`}>
+                                                {getStatusLabel(item.status)}
+                                            </span>
+                                            <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
+                                                {item.kind === "task" ? $t.home.itemTypeTask : $t.home.itemTypeSubtask}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p class="text-base font-semibold text-gray-900">{item.title}</p>
+                                            <p class="text-sm text-gray-500">{item.projectTitle}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid gap-2 text-sm text-gray-600 sm:grid-cols-3 lg:min-w-84">
+                                        <div>
+                                            <p class="text-xs uppercase tracking-[0.15em] text-gray-400">{$t.projects.dueDate}</p>
+                                            <p class="mt-1 font-medium text-gray-800">{item.dueDate ? dueDateLabel(item.dueDate) : "-"}</p>
+                                            <p class={`mt-1 text-xs font-semibold ${item.isOverdue ? "text-red-600" : item.isDueSoon ? "text-orange-600" : "text-gray-500"}`}>
+                                                {getTimelineLabel(item)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs uppercase tracking-[0.15em] text-gray-400">{$t.common.hours}</p>
+                                            <p class="mt-1 font-medium text-gray-800">{formatHours(item.estimatedHours)}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs uppercase tracking-[0.15em] text-gray-400">{$t.common.cost}</p>
+                                            <p class="mt-1 font-medium text-gray-900">{formatBudget(item.cost)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {:else}
+                    <div class="mt-5 rounded-3xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-500">
+                        {$t.home.noAssignments}
+                    </div>
+                {/if}
+            </article>
+
+            <article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-900">{$t.home.projectHealth}</h2>
+                        <p class="mt-1 text-sm text-gray-500">{$t.home.activeProjects}: {userProjects.length}</p>
+                    </div>
+                </div>
+
+                {#if projectSnapshots.length > 0}
+                    <div class="mt-5 space-y-3">
+                        {#each projectSnapshots as snapshot (snapshot.project.projectID)}
+                            <div class={`rounded-2xl border p-4 ${getProjectTone(snapshot)}`}>
+                                <div class="flex items-start gap-3">
+                                    <span class={`mt-1 h-3 w-3 shrink-0 rounded-full ${getProjectIndicator(snapshot)}`}></span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                            <div>
+                                                <p class="truncate text-base font-semibold text-gray-900">{snapshot.project.title}</p>
+                                                <p class="text-sm text-gray-600">{snapshot.project.customerName}</p>
+                                            </div>
+                                            <span class={`rounded-full px-3 py-1 text-xs font-semibold ${snapshot.onTrack ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-800"}`}>
+                                                {snapshot.onTrack ? $t.home.healthyPortfolio : $t.home.needsAttention}
+                                            </span>
+                                        </div>
+
+                                        <div class="mt-4 grid gap-3 text-sm text-gray-700 sm:grid-cols-2">
+                                            <div>
+                                                <p class="text-xs uppercase tracking-[0.15em] text-gray-400">{$t.projects.currentPhase}</p>
+                                                <p class="mt-1 font-medium">{snapshot.phase}</p>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs uppercase tracking-[0.15em] text-gray-400">{$t.projects.dueDate}</p>
+                                                <p class="mt-1 font-medium">{snapshot.dueDate ? dueDateLabel(snapshot.dueDate) : "-"}</p>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs uppercase tracking-[0.15em] text-gray-400">{$t.home.openItems}</p>
+                                                <p class="mt-1 font-medium">{snapshot.openItems}</p>
+                                            </div>
+                                            <div>
+                                                <p class="text-xs uppercase tracking-[0.15em] text-gray-400">{$t.home.overdueItems}</p>
+                                                <p class="mt-1 font-medium">{snapshot.overdueItems}</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-4">
+                                            <div class="mb-2 flex items-center justify-between text-sm">
+                                                <p class="font-medium text-gray-700">{$t.projects.budgetUsage}</p>
+                                                <p class={`font-semibold ${snapshot.budgetUsage > 100 ? "text-red-700" : "text-green-700"}`}>
+                                                    {snapshot.budgetUsage.toFixed(1)}%
+                                                </p>
+                                            </div>
+                                            <div class="h-2.5 overflow-hidden rounded-full bg-gray-200">
+                                                <div
+                                                    class={`h-full rounded-full ${snapshot.budgetUsage > 100 ? "bg-red-500" : "bg-green-500"}`}
+                                                    style={`width: ${Math.min(snapshot.budgetUsage, 100)}%`}
+                                                ></div>
+                                            </div>
+                                            <p class="mt-2 text-xs text-gray-500">{$t.projects.reserve}: {formatBudget(snapshot.reserveBudget)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {:else}
+                    <div class="mt-5 rounded-3xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-500">
+                        {$t.home.noProjects}
+                    </div>
+                {/if}
+            </article>
+        </section>
     </div>
 </div>

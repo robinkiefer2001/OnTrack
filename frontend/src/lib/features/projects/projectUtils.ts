@@ -15,11 +15,12 @@ export function toInputDate(value: Date | string | null): string | null {
 
 export function formatBudget(value: number | null): string {
   if (value == null) return "-";
-  return new Intl.NumberFormat("de-CH", {
-    style: "currency",
-    currency: "CHF",
+  const formatted = new Intl.NumberFormat("de-CH", {
+    style: "decimal",
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
+  return `${formatted} CHF`;
 }
 
 export function getPhaseRange(

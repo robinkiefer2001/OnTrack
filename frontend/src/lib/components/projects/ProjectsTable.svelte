@@ -94,7 +94,7 @@
                     <!-- Budget Usage -->
                     <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
                       <p class="text-sm font-medium text-gray-600 mb-2">{$t.projects.budgetUsage}</p>
-                      <p class="text-2xl font-bold text-purple-600">
+                      <p class={`text-2xl font-bold ${getProjectBudgetSummary(p, hourlyRates).percentageUsed > 100 ? "text-red-600" : "text-green-600"}`}>
                         {getProjectBudgetSummary(p, hourlyRates).percentageUsed.toFixed(0)}%
                       </p>
                     </div>
@@ -113,9 +113,7 @@
                         class={`h-3 rounded-full transition-all ${
                           getProjectBudgetSummary(p, hourlyRates).percentageUsed > 100
                             ? "bg-red-600"
-                            : getProjectBudgetSummary(p, hourlyRates).percentageUsed > 80
-                              ? "bg-yellow-400"
-                              : "bg-green-500"
+                            : "bg-green-500"
                         }`}
                         style={`width: ${Math.min(getProjectBudgetSummary(p, hourlyRates).percentageUsed, 100)}%`}
                       ></div>

@@ -9,10 +9,10 @@
   type PhaseName = "Initiation" | "Planing" | "Execution" | "Closure";
   const phaseNames: PhaseName[] = ["Initiation", "Planing", "Execution", "Closure"];
   const phaseColors: Record<PhaseName, { bg: string; text: string; border: string }> = {
-    Initiation: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200" },
-    Planing: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
-    Execution: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200" },
-    Closure: { bg: "bg-teal-50", text: "text-teal-700", border: "border-teal-200" },
+    Initiation: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+    Planing: { bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
+    Execution: { bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200" },
+    Closure: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200" },
   };
 
   $: phases = project
@@ -41,7 +41,7 @@
           <!-- Cost -->
           <div>
             <p class="text-sm text-gray-600 mb-1">Total Cost</p>
-            <p class="text-lg font-semibold text-gray-900">{formatBudget(phase.summary.totalCost)}</p>
+            <p class={`text-lg font-semibold ${phase.summary.isOverBudget ? "text-red-600" : "text-green-600"}`}>{formatBudget(phase.summary.totalCost)}</p>
           </div>
 
           <!-- Percentage Bar -->
@@ -52,14 +52,12 @@
                 {phase.summary.percentageUsed.toFixed(1)}%
               </p>
             </div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5">
+            <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
               <div
                 class={`h-2.5 rounded-full ${
                   phase.summary.percentageUsed > 100
                     ? "bg-red-600"
-                    : phase.summary.percentageUsed > 80
-                      ? "bg-yellow-400"
-                      : "bg-green-500"
+                    : "bg-green-500"
                 }`}
                 style={`width: ${Math.min(phase.summary.percentageUsed, 100)}%`}
               ></div>
@@ -69,7 +67,7 @@
           <!-- Over Budget Warning -->
           {#if phase.summary.isOverBudget}
             <div class="mt-3 pt-3 border-t border-current/20 flex items-start gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-5 w-5 shrink-0 text-red-600" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
               </svg>
               <div>

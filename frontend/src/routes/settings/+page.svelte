@@ -20,9 +20,9 @@
       <h2 class="text-2xl font-bold text-gray-900 mb-6">{$t.settings.languageSettings}</h2>
       
       <div class="form-control w-full max-w-md">
-        <label class="label">
+        <div class="label">
           <span class="label-text text-lg font-semibold">{$t.settings.selectLanguage}</span>
-        </label>
+        </div>
         <div class="flex gap-4">
           <label class="label cursor-pointer gap-3 border-2 rounded-lg px-6 py-4 hover:bg-gray-50 transition-colors"
                  class:border-blue-600={$currentLanguage === "de"}
