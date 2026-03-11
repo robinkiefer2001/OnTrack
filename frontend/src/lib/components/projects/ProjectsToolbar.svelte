@@ -1,13 +1,10 @@
 <script lang="ts">
-  import type { Project } from "$lib/models/project";
+  import type { Project } from "$lib/modules/projects/contracts";
   import { createEventDispatcher } from "svelte";
   import { t } from "$lib/language";
-  import {
-    countProjects,
-    formatBudget,
-    getProjectBudgetSummary,
-    toDateOrNull,
-  } from "$lib/features/projects/projectUtils";
+  import { countProjects, getProjectBudgetSummary, isClosedProject } from "$lib/modules/projects/business";
+  import { toDateOrNull } from "$lib/utils/date";
+  import { formatBudget, formatHours } from "$lib/utils/format";
 
   export let projects: Project[] = [];
   export let allProjects: Project[] = [];
@@ -26,13 +23,7 @@
   }>();
 
 
-  function isClosedProject(project: Project): boolean {
-    return project.projectstatus === "Closed" || project.projectstatus === "Cancelled";
-  }
 
-  function formatHours(totalHours: number): string {
-    return `${totalHours.toLocaleString("de-CH")} h`;
-  }
 
   $: totalProjects = countProjects(allProjects);
   $: activeProjects = allProjects.filter((project) => !isClosedProject(project)).length;

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import type { Project, ProjectStatus, HourlyRate } from "$lib/models/project";
+  import type { Project, ProjectStatus, HourlyRate } from "$lib/modules/projects/contracts";
   import { createEventDispatcher } from "svelte";
-  import { formatBudget, dueDateLabel, getCurrentPhase, isProjectOnTrack, getProjectBudgetSummary, getTaskCost } from "$lib/features/projects/projectUtils";
-  import { DEFAULT_HOURLY_RATES } from "$lib/models/hourlyRates";
+  import { getCurrentPhase, isProjectOnTrack, getProjectBudgetSummary, getTaskCost } from "$lib/modules/projects/business";
+  import { formatBudget, dueDateLabel } from "$lib/utils/format";
+  import { DEFAULT_HOURLY_RATES } from "$lib/modules/projects/rates";
   import { t } from "$lib/language";
 
   export let projects: Project[] = [];

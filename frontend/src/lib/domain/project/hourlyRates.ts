@@ -1,6 +1,5 @@
-import type { HourlyRate, ProjectSettings } from "./project";
+import type { HourlyRate } from "$lib/domain/project/types";
 
-// Default Hourly Rates
 export const DEFAULT_HOURLY_RATES: HourlyRate[] = [
   {
     rateID: 1,
@@ -28,7 +27,7 @@ export const DEFAULT_HOURLY_RATES: HourlyRate[] = [
   },
   {
     rateID: 5,
-    rateType: "BusinesAnalyst",
+    rateType: "BusinessAnalyst",
     hourlyRate: 130,
     isDefault: false,
   },
@@ -42,13 +41,12 @@ export function getDefaultHourlyRate(): HourlyRate {
 
 export function getHourlyRate(
   rateType: string,
-  rates: HourlyRate[] = DEFAULT_HOURLY_RATES
+  rates: HourlyRate[] = DEFAULT_HOURLY_RATES,
 ): number {
   const rate = rates.find((r) => r.rateType === rateType);
   return rate ? rate.hourlyRate : getDefaultHourlyRate().hourlyRate;
 }
 
-// Get hourly rates from localStorage or return defaults
 export function loadHourlyRates(): HourlyRate[] {
   if (typeof window === "undefined") return DEFAULT_HOURLY_RATES;
 
@@ -63,7 +61,6 @@ export function loadHourlyRates(): HourlyRate[] {
   return DEFAULT_HOURLY_RATES;
 }
 
-// Save hourly rates to localStorage
 export function saveHourlyRates(rates: HourlyRate[]): void {
   if (typeof window === "undefined") return;
   localStorage.setItem("hourlyRates", JSON.stringify(rates));

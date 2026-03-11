@@ -1,10 +1,15 @@
 <script lang="ts">
-	import type { HourlyRate } from "$lib/models/project";
+	import type { HourlyRate } from "$lib/modules/projects/contracts";
 	import {
 		DEFAULT_HOURLY_RATES,
 		loadHourlyRates,
 		saveHourlyRates,
-	} from "$lib/models/hourlyRates";
+	} from "$lib/modules/projects/rates";
+	import {
+		addHourlyRate,
+		deleteHourlyRate,
+		setDefaultHourlyRate,
+	} from "$lib/modules/admin/business";
 	import { t, currentLanguage } from "$lib/language";
 
 	let hourlyRates: HourlyRate[] = loadHourlyRates();
@@ -13,30 +18,17 @@
 	let savedMessage = false;
 
 	function addRate() {
-		if (!newRateType.trim() || newRateAmount <= 0) return;
-
-		const newRate: HourlyRate = {
-			rateID: Math.max(...hourlyRates.map((r) => r.rateID), 0) + 1,
-			rateType: newRateType.trim(),
-			hourlyRate: newRateAmount,
-			isDefault: false,
-		};
-
-		hourlyRates = [...hourlyRates, newRate];
+		hourlyRates = addHourlyRate(hourlyRates, newRateType, newRateAmount);
 		newRateType = "";
 		newRateAmount = 0;
 	}
 
 	function deleteRate(rateID: number) {
-		if (hourlyRates.length <= 1) return;
-		hourlyRates = hourlyRates.filter((r) => r.rateID !== rateID);
+		hourlyRates = deleteHourlyRate(hourlyRates, rateID);
 	}
 
 	function setDefault(rateID: number) {
-		hourlyRates = hourlyRates.map((r) => ({
-			...r,
-			isDefault: r.rateID === rateID,
-		}));
+		hourlyRates = setDefaultHourlyRate(hourlyRates, rateID);
 	}
 
 	function saveRates() {

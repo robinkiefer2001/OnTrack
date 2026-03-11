@@ -1,9 +1,9 @@
 <script lang="ts">
-    import type { Project } from "$lib/models/project";
-    import type { getHourlyRate } from "$lib/models/hourlyRates";
+    import type { Project } from "$lib/modules/projects/contracts";
     import { t } from "$lib/language";
-    import { getProjectBudgetSummary, formatBudget } from "$lib/features/projects/projectUtils";
-    import { DEFAULT_HOURLY_RATES } from "$lib/models/hourlyRates";
+    import { getProjectBudgetSummary } from "$lib/modules/projects/business";
+    import { formatBudget } from "$lib/utils/format";
+    import { DEFAULT_HOURLY_RATES } from "$lib/modules/projects/rates";
 
     export let project: Project | null = null;
 
@@ -23,7 +23,5 @@
             <div class="stat-title">{$t.taskDetail.taskCosts}</div>
             <div class="stat-value"></div>
         </div>
-            
-        
     </div>
 </div>

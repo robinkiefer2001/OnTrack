@@ -1,44 +1,24 @@
 <script lang="ts">
     import { onMount } from "svelte";
 
-    import { getHourlyRate, loadHourlyRates } from "$lib/models/hourlyRates";
-    import { projectList } from "$lib/models/mockupData";
-    import type { Project, Task } from "$lib/models/project";
+    import { loadHourlyRates } from "$lib/modules/projects/rates";
+    import { projectList } from "$lib/modules/projects/store";
+    import type { Project } from "$lib/modules/projects/contracts";
     import {
-        dueDateLabel,
-        formatBudget,
-        getCurrentPhase,
-        getProjectBudgetSummary,
-        isProjectOnTrack,
-    } from "$lib/features/projects/projectUtils";
+        buildDashboardState,
+        calculateCompletionRate as calculateCompletionRateMetric,
+        calculatePortfolioHealth as calculatePortfolioHealthMetric,
+        getOpenItemsCount as getOpenItemsCountMetric,
+        getOverdueCount as getOverdueCountMetric,
+        getDueSoonCount as getDueSoonCountMetric,
+        getAssignedHours as getAssignedHoursMetric,
+        getAssignedBudgetTotal as getAssignedBudgetTotalMetric,
+        getTimelineDayDiffLabel,
+    } from "$lib/modules/dashboard/business";
+    import type { WorkStatus, Assignment, ProjectSnapshot } from "$lib/modules/dashboard/contracts";
+    import { dueDateLabel, formatBudget } from "$lib/utils/format";
     import { t } from "$lib/language";
-    import { currentUser, getUserInitials } from "$lib/stores/userStore";
-
-    type WorkStatus = Task["status"];
-
-    type Assignment = {
-        id: string;
-        kind: "task" | "subtask";
-        title: string;
-        projectTitle: string;
-        status: WorkStatus;
-        dueDate: Date | null;
-        estimatedHours: number;
-        cost: number;
-        isOverdue: boolean;
-        isDueSoon: boolean;
-    };
-
-    type ProjectSnapshot = {
-        project: Project;
-        phase: string;
-        budgetUsage: number;
-        reserveBudget: number;
-        openItems: number;
-        overdueItems: number;
-        dueDate: Date | null;
-        onTrack: boolean;
-    };
+    import { currentUser, getUserInitials } from "$lib/modules/user/store";
 
     let projects = $state<Project[]>([]);
     let userProjects = $state<Project[]>([]);
@@ -57,194 +37,49 @@
         return `${firstName} ${lastName}`;
     }
 
-    function normalizeDate(value: Date | null): Date | null {
-        if (!value) return null;
-        const normalized = new Date(value);
-        normalized.setHours(0, 0, 0, 0);
-        return normalized;
-    }
-
-    function getStatusCounts(items: Assignment[]): Record<WorkStatus, number> {
-        return items.reduce(
-            (counts, item) => {
-                counts[item.status] += 1;
-                return counts;
-            },
-            {
-                Pending: 0,
-                "To Do": 0,
-                "In Progress": 0,
-                Done: 0,
-            } as Record<WorkStatus, number>,
-        );
-    }
-
-    function filterUserProjects(allProjects: Project[]): Project[] {
-        const userName = getFullName($currentUser.firstName, $currentUser.lastName);
-
-        return allProjects.filter((project) => {
-            if (project.customerID !== $currentUser.customerID) return false;
-
-            return (project.Tasks || []).some(
-                (task) =>
-                    task.assignedTo === userName ||
-                    (task.subtasks || []).some((subtask) => subtask.assignedTo === userName),
-            );
-        });
-    }
-
-    function collectAssignments(project: Project, userName: string): Assignment[] {
-        const today = normalizeDate(new Date());
-        const nextWeek = today ? new Date(today) : null;
-        nextWeek?.setDate(nextWeek.getDate() + 7);
-
-        return (project.Tasks || []).flatMap((task) => {
-            const items: Assignment[] = [];
-
-            if (task.assignedTo === userName) {
-                const dueDate = normalizeDate(task.dueDate);
-                const estimatedHours = task.estimatedHours || 0;
-                const cost = estimatedHours * getHourlyRate(task.hourlyRateType, hourlyRates);
-
-                items.push({
-                    id: `task-${project.projectID}-${task.taskID}`,
-                    kind: "task",
-                    title: task.title,
-                    projectTitle: project.title,
-                    status: task.status,
-                    dueDate,
-                    estimatedHours,
-                    cost,
-                    isOverdue: Boolean(dueDate && today && task.status !== "Done" && dueDate < today),
-                    isDueSoon: Boolean(
-                        dueDate &&
-                            today &&
-                            nextWeek &&
-                            task.status !== "Done" &&
-                            dueDate >= today &&
-                            dueDate <= nextWeek,
-                    ),
-                });
-            }
-
-            (task.subtasks || []).forEach((subtask) => {
-                if (subtask.assignedTo !== userName) return;
-
-                const dueDate = normalizeDate(subtask.dueDate);
-                const estimatedHours = subtask.estimatedHours || 0;
-                const cost = estimatedHours * getHourlyRate(subtask.hourlyRateType, hourlyRates);
-
-                items.push({
-                    id: `subtask-${project.projectID}-${task.taskID}-${subtask.subtaskID}`,
-                    kind: "subtask",
-                    title: `${task.title} / ${subtask.title}`,
-                    projectTitle: project.title,
-                    status: subtask.status,
-                    dueDate,
-                    estimatedHours,
-                    cost,
-                    isOverdue: Boolean(dueDate && today && subtask.status !== "Done" && dueDate < today),
-                    isDueSoon: Boolean(
-                        dueDate &&
-                            today &&
-                            nextWeek &&
-                            subtask.status !== "Done" &&
-                            dueDate >= today &&
-                            dueDate <= nextWeek,
-                    ),
-                });
-            });
-
-            return items;
-        });
-    }
-
-    function buildProjectSnapshots(items: Project[]): ProjectSnapshot[] {
-        const userName = getFullName($currentUser.firstName, $currentUser.lastName);
-        const today = normalizeDate(new Date());
-
-        return items
-            .map((project) => {
-                const summary = getProjectBudgetSummary(project, hourlyRates);
-                const relevantItems = collectAssignments(project, userName);
-                const openItems = relevantItems.filter((item) => item.status !== "Done").length;
-                const overdueItems = relevantItems.filter((item) => item.isOverdue).length;
-
-                return {
-                    project,
-                    phase: getCurrentPhase(project) ?? "-",
-                    budgetUsage: summary.percentageUsed,
-                    reserveBudget: summary.reserveBudget,
-                    openItems,
-                    overdueItems,
-                    dueDate: project.dueDate ? new Date(project.dueDate) : null,
-                    onTrack: isProjectOnTrack(project) && overdueItems === 0,
-                };
-            })
-            .sort((left, right) => {
-                if (left.overdueItems !== right.overdueItems) {
-                    return right.overdueItems - left.overdueItems;
-                }
-                if (left.onTrack !== right.onTrack) {
-                    return left.onTrack ? 1 : -1;
-                }
-                return (right.budgetUsage || 0) - (left.budgetUsage || 0);
-            });
-    }
-
     function buildDashboard() {
         hourlyRates = loadHourlyRates();
-        userProjects = filterUserProjects(projects);
-
         const userName = getFullName($currentUser.firstName, $currentUser.lastName);
-        assignments = userProjects.flatMap((project) => collectAssignments(project, userName));
-        statusCounts = getStatusCounts(assignments);
+        const nextState = buildDashboardState(
+            projects,
+            userName,
+            $currentUser.customerID,
+            hourlyRates,
+        );
 
-        priorityAssignments = assignments
-            .filter((item) => item.status !== "Done")
-            .sort((left, right) => {
-                if (left.isOverdue !== right.isOverdue) return left.isOverdue ? -1 : 1;
-                if (left.isDueSoon !== right.isDueSoon) return left.isDueSoon ? -1 : 1;
-                if (left.dueDate && right.dueDate) return left.dueDate.getTime() - right.dueDate.getTime();
-                if (left.dueDate) return -1;
-                if (right.dueDate) return 1;
-                return right.estimatedHours - left.estimatedHours;
-            })
-            .slice(0, 6);
-
-        projectSnapshots = buildProjectSnapshots(userProjects).slice(0, 5);
+        userProjects = nextState.userProjects;
+        assignments = nextState.assignments;
+        priorityAssignments = nextState.priorityAssignments;
+        projectSnapshots = nextState.projectSnapshots;
+        statusCounts = nextState.statusCounts;
     }
 
     function getOpenItemsCount(): number {
-        return assignments.filter((item) => item.status !== "Done").length;
+        return getOpenItemsCountMetric(assignments);
     }
 
     function getOverdueCount(): number {
-        return assignments.filter((item) => item.isOverdue).length;
+        return getOverdueCountMetric(assignments);
     }
 
     function getDueSoonCount(): number {
-        return assignments.filter((item) => item.isDueSoon).length;
+        return getDueSoonCountMetric(assignments);
     }
 
     function getAssignedHours(): number {
-        return assignments.reduce((sum, item) => sum + item.estimatedHours, 0);
+        return getAssignedHoursMetric(assignments);
     }
 
     function getAssignedBudgetTotal(): number {
-        return assignments.reduce((sum, item) => sum + item.cost, 0);
+        return getAssignedBudgetTotalMetric(assignments);
     }
 
     function getCompletionRate(): number {
-        if (assignments.length === 0) return 0;
-        const completedItems = assignments.filter((item) => item.status === "Done").length;
-        return (completedItems / assignments.length) * 100;
+        return calculateCompletionRateMetric(assignments);
     }
 
     function getPortfolioHealth(): number {
-        if (userProjects.length === 0) return 0;
-        const healthyProjects = projectSnapshots.filter((project) => project.onTrack).length;
-        return (healthyProjects / userProjects.length) * 100;
+        return calculatePortfolioHealthMetric(projectSnapshots, userProjects.length);
     }
 
     function getStatusLabel(status: WorkStatus): string {
@@ -276,10 +111,8 @@
     function getTimelineLabel(item: Assignment): string {
         if (!item.dueDate) return "-";
 
-        const today = normalizeDate(new Date());
-        if (!today) return dueDateLabel(item.dueDate);
-
-        const diff = Math.round((item.dueDate.getTime() - today.getTime()) / 86400000);
+        const diff = getTimelineDayDiffLabel(item.dueDate, new Date());
+        if (diff == null) return dueDateLabel(item.dueDate);
         if (diff < 0) return `${$t.home.overdueByDays} ${Math.abs(diff)}`;
         if (diff === 0) return $t.home.dueToday;
         return `${$t.home.dueInDays} ${diff}`;
@@ -299,7 +132,6 @@
         projects = value;
         buildDashboard();
     });
-
     const unsubscribeCurrentUser = currentUser.subscribe(() => {
         buildDashboard();
     });

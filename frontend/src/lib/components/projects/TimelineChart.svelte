@@ -4,7 +4,8 @@
   import { Chart } from "chart.js/auto";
   import ChartDataLabels from "chartjs-plugin-datalabels";
   import "chartjs-adapter-date-fns";
-  import type { Task, ProjectPhase } from "$lib/models/project";
+  import type { Task, ProjectPhase } from "$lib/modules/projects/contracts";
+  import { toDateOrNull, parseSwissDate } from "$lib/utils/date";
 
   let canvas: HTMLCanvasElement;
   let chart: Chart | null = null;
@@ -63,23 +64,7 @@
     };
   }
 
-  function parseSwissDate(value: string | null): Date | null {
-    if (!value) return null;
-    const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
-    if (!m) return null;
-    const [, dd, mm, yyyy] = m;
-    const iso = `${yyyy}-${mm}-${dd}`;
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
 
-  function toDateOrNull(value: Date | string | null): Date | null {
-    if (!value) return null;
-    if (value instanceof Date) return value;
-    const iso = new Date(value);
-    if (!Number.isNaN(iso.getTime())) return iso;
-    return parseSwissDate(value);
-  }
 
   // Setze Start auf 00:00:00 des Starttages und Ende auf 23:59:59 des Endtages
   // Damit füllt der Balken den Kalender-Kasten zwischen zwei Gitterlinien komplett aus

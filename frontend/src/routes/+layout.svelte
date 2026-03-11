@@ -3,9 +3,9 @@
   import "../app.css";
   import { goto } from "$app/navigation";
   import { t } from "$lib/language";
-  import { currentUser, getUserInitials, type CurrentUser } from "$lib/stores/userStore";
-  import { customerEmployeeList } from "$lib/models/mockupData";
-  import type { CustomerEmployee } from "$lib/models/project";
+  import { currentUser, getUserInitials, type CurrentUser } from "$lib/modules/user/store";
+  import { customerEmployeeList } from "$lib/modules/projects/dataSource.mock";
+  import type { CustomerEmployee } from "$lib/modules/projects/contracts";
 
   let { children } = $props();
   let navSearch = $state("");

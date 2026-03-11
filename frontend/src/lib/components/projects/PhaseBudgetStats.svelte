@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { Project, HourlyRate } from "$lib/models/project";
-  import { getPhaseHoursSummary, formatBudget } from "$lib/features/projects/projectUtils";
-  import { DEFAULT_HOURLY_RATES } from "$lib/models/hourlyRates";
+  import type { Project, HourlyRate } from "$lib/modules/projects/contracts";
+  import { getPhaseHoursSummary } from "$lib/modules/projects/business";
+  import { formatBudget } from "$lib/utils/format";
+  import { DEFAULT_HOURLY_RATES } from "$lib/modules/projects/rates";
 
   export let project: Project | null = null;
   export let rates: HourlyRate[] = DEFAULT_HOURLY_RATES;

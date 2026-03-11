@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { Task } from "$lib/models/project";
-  import type { HourlyRate } from "$lib/models/project";
-  import { getTaskHours, getTaskCost, getTaskBudgetPercentage } from "$lib/features/projects/projectUtils";
-  import { formatBudget } from "$lib/features/projects/projectUtils";
-  import { DEFAULT_HOURLY_RATES, getHourlyRate } from "$lib/models/hourlyRates";
+  import type { Task } from "$lib/modules/projects/contracts";
+  import type { HourlyRate } from "$lib/modules/projects/contracts";
+  import { getTaskHours, getTaskCost, getTaskBudgetPercentage } from "$lib/modules/projects/business";
+  import { formatBudget } from "$lib/utils/format";
+  import { DEFAULT_HOURLY_RATES, getHourlyRate } from "$lib/modules/projects/rates";
   import { createEventDispatcher } from "svelte";
   import { t } from "$lib/language";
 

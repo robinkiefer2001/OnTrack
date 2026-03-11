@@ -4,7 +4,7 @@ import type {
     Project,
     ProjectPhase,
     ProjectStatus,
-} from "./project";
+} from "$lib/domain/project/types";
 import { writable } from "svelte/store";
 
 // Realistic German/Swiss employees

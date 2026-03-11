@@ -1,11 +1,9 @@
-import type { getInitialScaleBounds } from "chartjs-plugin-zoom";
-
 export interface Project {
   title: string;
   customerID: number | null;
   projectID: number | null;
 
-  initiationPhase: ProjectPhase[];  // nur noch als Array
+  initiationPhase: ProjectPhase[];
   planingPhase: ProjectPhase[];
   executionPhase: ProjectPhase[];
   closurePhase: ProjectPhase[];
@@ -13,12 +11,11 @@ export interface Project {
   customerName: string;
   dueDate: Date | null;
   startDate: Date | null;
-  budget: number | null; // CHF - Obergrenze für alle Kosten
+  budget: number | null;
   projectManager: string;
   projectstatus: ProjectStatus;
   Tasks: Task[];
 }
-
 
 export interface ProjectPhase {
   phaseid: number | null;
@@ -40,8 +37,8 @@ export interface Task {
   dueDate: Date | null;
   startDate: Date | null;
   notificationSent: boolean;
-  estimatedHours: number | null; // Stunden für diesen Task (optional)
-  hourlyRateType: string; // z.B. "SystemEngineer", "ProjectManager"
+  estimatedHours: number | null;
+  hourlyRateType: string;
   subtasks: Subtask[];
 }
 
@@ -54,14 +51,14 @@ export interface Subtask {
   assignedTo: string;
   dueDate: Date | null;
   startDate: Date | null;
-  estimatedHours: number | null; // Stunden für diese Subtask (optional)
+  estimatedHours: number | null;
   hourlyRateType: string;
 }
 
 export interface HourlyRate {
   rateID: number;
-  rateType: string; // z.B. "SystemEngineer", "ProjectManager", "Developer"
-  hourlyRate: number; // CHF pro Stunde
+  rateType: string;
+  hourlyRate: number;
   isDefault: boolean;
 }
 
@@ -90,7 +87,6 @@ export interface Customer {
 export interface CustomerEmployee {
   customerID: number;
   employeeID: number;
-
   firstName: string;
   lastName: string;
   phone: string | null;
