@@ -8,6 +8,10 @@ export function toDateOrNull(value: Date | string | null): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+export function countProjects(projects: Project[]): number {
+  return projects.length;
+}
+
 export function toInputDate(value: Date | string | null): string | null {
   const date = toDateOrNull(value);
   return date ? date.toISOString().split("T")[0] : null;
@@ -211,3 +215,4 @@ export function isProjectOnTrack(project: Project): boolean {
   // On track if today is before or on the due date
   return today <= phaseEndDate;
 }
+

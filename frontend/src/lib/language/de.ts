@@ -35,6 +35,13 @@ export const de: Translations = {
     collapse: "Einklappen",
   },
 
+  taskDetail: {
+    taskTotal: "Gesamt Aufgaben",
+    taskCosts: "Gesamtkosten der Aufgabe",
+    subtaskTotal: "Gesamt Unteraufgaben",
+    subtaskCosts: "Gesamtkosten der Unteraufgaben",
+  },
+
   settings: {
     title: "Einstellungen",
     language: "Sprache",
@@ -185,7 +192,11 @@ export const de: Translations = {
     description: "Ihre Projektmanagement-Lösung",
     title: "Dashboard",
     subtitle: "Relevante Aufgaben, Budgetdruck und Projektlage auf einen Blick statt generischer Diagramme.",
+    totalProjects: "Gesamtprojekte",
     activeProjects: "Aktive Projekte",
+    overdueProjects: "Überfällige Projekte",
+    totalBudget: "Gesamtbudget",
+    totalHours: "Gesamtstunden",
     overdueItems: "Überfällige Punkte",
     dueThisWeek: "Diese Woche fällig",
     assignedBudget: "Zugeordnete Kosten",

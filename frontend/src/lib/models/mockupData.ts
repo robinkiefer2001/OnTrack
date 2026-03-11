@@ -169,7 +169,16 @@ export const customerEmployeeList: CustomerEmployee[] = customerList.flatMap((cu
     })),
 );
 
-const initialProjectList: Project[] = realisticProjects.map((projTemplate, index) => {
+const DUMMY_PROJECT_COUNT = 50;
+
+const initialProjectList: Project[] = Array.from({ length: DUMMY_PROJECT_COUNT }, (_, index) => {
+    const baseTemplate = realisticProjects[index % realisticProjects.length];
+    const cycle = Math.floor(index / realisticProjects.length) + 1;
+    const projTemplate = {
+        ...baseTemplate,
+        title: cycle > 1 ? `${baseTemplate.title} ${cycle}` : baseTemplate.title,
+    };
+
     const customer = customerList[index % customerList.length];
     const managers = customerEmployeeList.filter((emp) => emp.customerID === customer.customerID);
     const manager = managers[0] || customerEmployeeList[0];

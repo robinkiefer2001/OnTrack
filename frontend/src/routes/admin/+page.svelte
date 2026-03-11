@@ -59,9 +59,6 @@
 
 <div class="min-h-screen bg-white py-8">
 	<div class="max-w-6xl mx-auto px-6">
-		<div class="mb-8">
-			<h1 class="text-4xl font-bold text-gray-900">{$t.nav.admin}</h1>
-		</div>
 
 		{#if savedMessage}
 			<div class="alert alert-success mb-6">
@@ -69,7 +66,7 @@
 			</div>
 		{/if}
 
-		<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+		<div class="bg-white rounded-4xl shadow-sm border border-gray-200 p-6 mb-6">
 			<h2 class="text-2xl font-bold text-gray-900 mb-6">{$t.settings.hourlyRatesTitle}</h2>
 
 			<div class="overflow-x-auto mb-8">
@@ -98,7 +95,7 @@
 								</td>
 								<td class="py-3 px-4 text-right">
 									<button
-										class="btn btn-sm btn-error btn-outline"
+										class="btn btn-sm rounded-4xl btn-error btn-outline"
 										on:click={() => deleteRate(rate.rateID)}
 										disabled={hourlyRates.length === 1}
 									>
@@ -142,7 +139,7 @@
 					</div>
 				</div>
 
-				<button class="btn btn-primary" on:click={addRate}>
+				<button class="btn btn-neutral rounded-4xl" on:click={addRate}>
 					{$t.settings.addRate}
 				</button>
                 

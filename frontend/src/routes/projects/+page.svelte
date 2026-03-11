@@ -636,7 +636,10 @@
   }
 </script>
 
+<div class="min-h-screen bg-gray-50 max-w-full mt-0 pt-4">
 <ProjectsToolbar
+  projects={filteredProjects}
+  allProjects={$projectList}
   {selectedProject}
   bind:fullTextSearch={projectFullTextSearch}
   bind:projectManagerFilter={projectManagerFilter}
@@ -1866,3 +1869,4 @@
     </div>
   </div>
 {/if}
+</div>

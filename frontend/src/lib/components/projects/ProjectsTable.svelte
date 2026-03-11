@@ -33,8 +33,8 @@
 
 </script>
 
-<div class="rounded-box shadow bg-base-100 p-4 overflow-x-auto flex-2">
-  <div class="h-150">
+<div class="rounded-4xl shadow border border-gray-200 bg-base-100 p-4 overflow-x-auto flex-2 max-w-7xl justify-items-center-safe mx-auto px-6">
+  <div class="h-150 w-full">
     <table class="table">
       <thead>
         <tr>
@@ -42,11 +42,11 @@
           <th>{$t.projects.customer}</th>
           <th>{$t.projects.projectManager}</th>
           <th>{$t.projects.budget}</th>
-          <th>{$t.common.status}</th>
+          <th>{$t.common.status}</th> 
           <th>{$t.projects.dueDate}</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody class = "rounded-4xl">
         {#each projects as p, index}
           <tr
             class={`cursor-pointer transition-colors ${

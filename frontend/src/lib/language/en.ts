@@ -171,6 +171,13 @@ export const en: Translations = {
     cancelled: "Cancelled",
   },
 
+  taskDetail: {
+    taskTotal: "Total Tasks",
+    taskCosts: "Total Task Costs",
+    subtaskTotal: "Total Subtasks",
+    subtaskCosts: "Total Subtask Costs",
+  },
+
   messages: {
     subtaskDateBeforeTask: "Subtask start date cannot be before task start date",
     subtaskDateAfterTask: "Subtask end date cannot be after task end date",
@@ -185,7 +192,11 @@ export const en: Translations = {
     description: "Your Project Management Solution",
     title: "Dashboard",
     subtitle: "Relevant assignments, budget pressure, and project health instead of generic charts.",
+    totalProjects: "Total Projects",
     activeProjects: "Active Projects",
+    overdueProjects: "Overdue Projects",
+    totalBudget: "Total Budget",
+    totalHours: "Total Hours",
     overdueItems: "Overdue Items",
     dueThisWeek: "Due This Week",
     assignedBudget: "Assigned Cost",

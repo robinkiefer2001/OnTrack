@@ -13,6 +13,13 @@ export interface Translations {
     admin: string;
   };
 
+  taskDetail: {
+    taskTotal: string;
+    taskCosts: string;
+    subtaskTotal: string;
+    subtaskCosts: string;
+  };
+
   // Common
   common: {
     save: string;
@@ -194,7 +201,11 @@ export interface Translations {
     description: string;
     title: string;
     subtitle: string;
+    totalProjects: string;
     activeProjects: string;
+    overdueProjects: string;
+    totalBudget: string;
+    totalHours: string;
     overdueItems: string;
     dueThisWeek: string;
     assignedBudget: string;

@@ -295,18 +295,19 @@
         return `${(hours / 8).toFixed(1)} ${$t.common.days} (${hours.toFixed(0)}h)`;
     }
 
-    const unsubscribe = projectList.subscribe((value) => {
+    const unsubscribeProjects = projectList.subscribe((value) => {
         projects = value;
         buildDashboard();
     });
 
-    $effect(() => {
+    const unsubscribeCurrentUser = currentUser.subscribe(() => {
         buildDashboard();
     });
 
     onMount(() => {
         return () => {
-            unsubscribe();
+            unsubscribeProjects();
+            unsubscribeCurrentUser();
         };
     });
 </script>
