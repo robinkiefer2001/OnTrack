@@ -159,6 +159,8 @@ export function mapTaskToDraft(task: Task): TaskDraft {
     startDate: task.startDate ? task.startDate.toISOString().split("T")[0] : null,
     estimatedHours: task.estimatedHours,
     hourlyRateType: task.hourlyRateType,
+    isCritical: task.isCritical ?? false,
+    riskNote: task.riskNote ?? "",
   };
 }
 

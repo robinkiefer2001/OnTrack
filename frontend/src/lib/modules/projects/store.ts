@@ -1,1 +1,7 @@
-export { projectList, addProject } from "$lib/state/projects/projects.store";
+export {
+	projectList,
+	addProject,
+	updateAssignmentStatus,
+	setAssignmentHoursFromLogged,
+	updateAssignmentMeta,
+} from "$lib/state/projects/projects.store";

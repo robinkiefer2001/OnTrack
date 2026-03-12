@@ -2,7 +2,7 @@
     import { onMount } from "svelte";
 
     import { loadHourlyRates } from "$lib/modules/projects/rates";
-    import { projectList } from "$lib/modules/projects/store";
+    import { projectList, updateAssignmentStatus } from "$lib/modules/projects/store";
     import type { Project } from "$lib/modules/projects/contracts";
     import {
         buildDashboardState,
@@ -32,6 +32,10 @@
         "In Progress": 0,
         Done: 0,
     });
+    let assignmentDrilldownOpen = $state(false);
+    let selectedAssignment = $state<Assignment | null>(null);
+    let projectDrilldownOpen = $state(false);
+    let selectedSnapshot = $state<ProjectSnapshot | null>(null);
 
     function getFullName(firstName: string, lastName: string): string {
         return `${firstName} ${lastName}`;
@@ -128,6 +132,30 @@
         return `${(hours / 8).toFixed(1)} ${$t.common.days} (${hours.toFixed(0)}h)`;
     }
 
+    function openAssignmentDrilldown(item: Assignment) {
+        selectedAssignment = item;
+        assignmentDrilldownOpen = true;
+    }
+
+    function closeAssignmentDrilldown() {
+        assignmentDrilldownOpen = false;
+        selectedAssignment = null;
+    }
+
+    function openProjectDrilldown(snapshot: ProjectSnapshot) {
+        selectedSnapshot = snapshot;
+        projectDrilldownOpen = true;
+    }
+
+    function closeProjectDrilldown() {
+        projectDrilldownOpen = false;
+        selectedSnapshot = null;
+    }
+
+    function changeAssignmentStatus(id: string, status: WorkStatus) {
+        updateAssignmentStatus(id, status);
+    }
+
     const unsubscribeProjects = projectList.subscribe((value) => {
         projects = value;
         buildDashboard();
@@ -180,7 +208,7 @@
                             </div>
                             <div class="rounded-full bg-blue-100 p-3">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5-1a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </div>
                         </div>
@@ -333,9 +361,12 @@
                 </div>
 
                 {#if priorityAssignments.length > 0}
-                    <div class="mt-5 space-y-3">
+                    <div class="mt-5 max-h-120 overflow-y-auto space-y-3 pr-1">
                         {#each priorityAssignments as item (item.id)}
-                            <div class="rounded-2xl border border-gray-200 p-4 transition hover:border-blue-200 hover:bg-gray-50">
+                            <button
+                                class="w-full rounded-2xl border border-gray-200 p-4 text-left transition hover:border-blue-200 hover:bg-gray-50"
+                                onclick={() => openAssignmentDrilldown(item)}
+                            >
                                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div class="space-y-2">
                                         <div class="flex flex-wrap items-center gap-2">
@@ -370,7 +401,7 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </button>
                         {/each}
                     </div>
                 {:else}
@@ -389,9 +420,12 @@
                 </div>
 
                 {#if projectSnapshots.length > 0}
-                    <div class="mt-5 space-y-3">
+                    <div class="mt-5 max-h-120 overflow-y-auto space-y-3 pr-1">
                         {#each projectSnapshots as snapshot (snapshot.project.projectID)}
-                            <div class={`rounded-2xl border p-4 ${getProjectTone(snapshot)}`}>
+                            <button
+                                class={`w-full rounded-2xl border p-4 text-left ${getProjectTone(snapshot)}`}
+                                onclick={() => openProjectDrilldown(snapshot)}
+                            >
                                 <div class="flex items-start gap-3">
                                     <span class={`mt-1 h-3 w-3 shrink-0 rounded-full ${getProjectIndicator(snapshot)}`}></span>
                                     <div class="min-w-0 flex-1">
@@ -441,7 +475,7 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </button>
                         {/each}
                     </div>
                 {:else}
@@ -453,3 +487,109 @@
         </section>
     </div>
 </div>
+
+{#if assignmentDrilldownOpen && selectedAssignment}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <button class="absolute inset-0 bg-black/35" aria-label="Close assignment details" onclick={closeAssignmentDrilldown}></button>
+        <div class="relative w-full max-w-2xl rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">{$t.home.nextAssignments}</p>
+                    <h3 class="mt-1 text-xl font-bold text-gray-900">{selectedAssignment.title}</h3>
+                    <p class="text-sm text-gray-500">{selectedAssignment.projectTitle}</p>
+                </div>
+                <button class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-600" onclick={closeAssignmentDrilldown}>{$t.common.close}</button>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.common.status}</p>
+                    <div class="mt-2 flex items-center gap-2">
+                        <span class={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(selectedAssignment.status)}`}>
+                            {getStatusLabel(selectedAssignment.status)}
+                        </span>
+                        <select
+                            value={selectedAssignment.status}
+                            onchange={(e) => {
+                                if (!selectedAssignment) return;
+                                changeAssignmentStatus(selectedAssignment.id, (e.currentTarget as HTMLSelectElement).value as WorkStatus);
+                            }}
+                            class="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-700"
+                        >
+                            <option value="Pending">{$t.taskStatus.pending}</option>
+                            <option value="To Do">{$t.taskStatus.toDo}</option>
+                            <option value="In Progress">{$t.taskStatus.inProgress}</option>
+                            <option value="Done">{$t.taskStatus.done}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.projects.dueDate}</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-800">{selectedAssignment.dueDate ? dueDateLabel(selectedAssignment.dueDate) : "-"}</p>
+                    <p class={`mt-1 text-xs font-semibold ${selectedAssignment.isOverdue ? "text-red-600" : selectedAssignment.isDueSoon ? "text-orange-600" : "text-gray-500"}`}>
+                        {getTimelineLabel(selectedAssignment)}
+                    </p>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.common.hours}</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-800">{formatHours(selectedAssignment.estimatedHours)}</p>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.common.cost}</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-800">{formatBudget(selectedAssignment.cost)}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{/if}
+
+{#if projectDrilldownOpen && selectedSnapshot}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <button class="absolute inset-0 bg-black/35" aria-label="Close project details" onclick={closeProjectDrilldown}></button>
+        <div class="relative w-full max-w-3xl rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-green-600">{$t.home.projectHealth}</p>
+                    <h3 class="mt-1 text-xl font-bold text-gray-900">{selectedSnapshot.project.title}</h3>
+                    <p class="text-sm text-gray-500">{selectedSnapshot.project.customerName}</p>
+                </div>
+                <button class="rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-600" onclick={closeProjectDrilldown}>{$t.common.close}</button>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.projects.currentPhase}</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-800">{selectedSnapshot.phase}</p>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.projects.dueDate}</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-800">{selectedSnapshot.dueDate ? dueDateLabel(selectedSnapshot.dueDate) : "-"}</p>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.home.openItems}</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-800">{selectedSnapshot.openItems}</p>
+                </div>
+                <div class="rounded-2xl bg-gray-50 p-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-400">{$t.home.overdueItems}</p>
+                    <p class="mt-2 text-sm font-semibold text-gray-800">{selectedSnapshot.overdueItems}</p>
+                </div>
+            </div>
+
+            <div class="mt-4 rounded-2xl border border-gray-200 p-4">
+                <div class="mb-2 flex items-center justify-between text-sm">
+                    <p class="font-medium text-gray-700">{$t.projects.budgetUsage}</p>
+                    <p class={`font-semibold ${selectedSnapshot.budgetUsage > 100 ? "text-red-700" : "text-green-700"}`}>
+                        {selectedSnapshot.budgetUsage.toFixed(1)}%
+                    </p>
+                </div>
+                <div class="h-2.5 overflow-hidden rounded-full bg-gray-200">
+                    <div
+                        class={`h-full rounded-full ${selectedSnapshot.budgetUsage > 100 ? "bg-red-500" : "bg-green-500"}`}
+                        style={`width: ${Math.min(selectedSnapshot.budgetUsage, 100)}%`}
+                    ></div>
+                </div>
+                <p class="mt-2 text-xs text-gray-500">{$t.projects.reserve}: {formatBudget(selectedSnapshot.reserveBudget)}</p>
+            </div>
+        </div>
+    </div>
+{/if}

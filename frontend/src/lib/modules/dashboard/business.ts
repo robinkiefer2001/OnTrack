@@ -8,4 +8,5 @@ export {
   getAssignedHours,
   getAssignedBudgetTotal,
   getTimelineDayDiffLabel,
+  filterUserProjects,
 } from "$lib/domain/dashboard/services";

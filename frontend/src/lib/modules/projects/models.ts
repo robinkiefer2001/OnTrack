@@ -11,6 +11,8 @@ export interface TaskDraft {
   startDate: Date | string | null;
   estimatedHours: number | null;
   hourlyRateType: string;
+  isCritical: boolean;
+  riskNote: string;
 }
 
 export interface SubtaskDraft {
@@ -22,6 +24,8 @@ export interface SubtaskDraft {
   startDate: Date | string | null;
   estimatedHours: number | null;
   hourlyRateType: string;
+  isCritical: boolean;
+  riskNote: string;
 }
 
 export type SubtaskDraftItem = Task["subtasks"][number];
@@ -38,6 +42,8 @@ export function createEmptyTaskDraft(): TaskDraft {
     startDate: null,
     estimatedHours: null,
     hourlyRateType: "SystemEngineer",
+    isCritical: false,
+    riskNote: "",
   };
 }
 
@@ -51,6 +57,8 @@ export function createEmptySubtaskDraft(): SubtaskDraft {
     startDate: null,
     estimatedHours: null,
     hourlyRateType: "SystemEngineer",
+    isCritical: false,
+    riskNote: "",
   };
 }
 
@@ -73,6 +81,7 @@ export function createEmptyProject(projectId: number): Project {
     projectID: projectId,
     projectManager: "",
     projectstatus: "Initiation" as ProjectStatus,
+    risks: [],
     initiationPhase: [createPhase(0, "Initiation")],
     planingPhase: [createPhase(1, "Planing")],
     executionPhase: [createPhase(2, "Execution")],

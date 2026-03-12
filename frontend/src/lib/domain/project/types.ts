@@ -14,7 +14,17 @@ export interface Project {
   budget: number | null;
   projectManager: string;
   projectstatus: ProjectStatus;
+  risks?: ProjectRisk[];
   Tasks: Task[];
+}
+
+export interface ProjectRisk {
+  id: string;
+  title: string;
+  impact: "Low" | "Medium" | "High";
+  probability: "Low" | "Medium" | "High";
+  mitigation: string;
+  isOpen: boolean;
 }
 
 export interface ProjectPhase {
@@ -39,6 +49,8 @@ export interface Task {
   notificationSent: boolean;
   estimatedHours: number | null;
   hourlyRateType: string;
+  isCritical?: boolean;
+  riskNote?: string;
   subtasks: Subtask[];
 }
 
@@ -53,6 +65,8 @@ export interface Subtask {
   startDate: Date | null;
   estimatedHours: number | null;
   hourlyRateType: string;
+  isCritical?: boolean;
+  riskNote?: string;
 }
 
 export interface HourlyRate {

@@ -144,6 +144,7 @@ export interface Translations {
     currentPhase: string;
     onTrack: string;
     behind: string;
+    overBudget: string;
     budgetUsage: string;
     reserve: string;
     teamMembers: string;
@@ -204,6 +205,10 @@ export interface Translations {
     totalProjects: string;
     activeProjects: string;
     overdueProjects: string;
+    overBudgetProjects: string;
+    onTrackDesc: string;
+    overBudgetDesc: string;
+    visibleProjects: string;
     totalBudget: string;
     totalHours: string;
     overdueItems: string;
@@ -231,5 +236,22 @@ export interface Translations {
     openItems: string;
     focus: string;
     currentAssignments: string;
+  };
+
+  taskPage: {
+    calendar: string;
+    today: string;
+    workLog: string;
+    addWorkEntry: string;
+    workDescription: string;
+    totalLogged: string;
+    noWorkEntries: string;
+    loggedShort: string;
+    chat: string;
+    sendMessage: string;
+    messagePlaceholder: string;
+    to: string;
+    noMessages: string;
+    messagesShort: string;
   };
 }

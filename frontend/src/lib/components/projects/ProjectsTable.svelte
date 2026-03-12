@@ -32,103 +32,133 @@
     return phaseName;
   }
 
+  function isProjectHealthy(project: Project): boolean {
+    return isProjectOnTrack(project) && !getProjectBudgetSummary(project, hourlyRates).isOverBudget;
+  }
+
+  function getHealthLabel(project: Project): string {
+    if (getProjectBudgetSummary(project, hourlyRates).isOverBudget) return $t.projects.overBudget;
+    if (!isProjectOnTrack(project)) return $t.projects.behind;
+    return $t.projects.onTrack;
+  }
+
+  function getHealthColor(project: Project): string {
+    if (getProjectBudgetSummary(project, hourlyRates).isOverBudget) return "bg-red-500";
+    if (!isProjectOnTrack(project)) return "bg-orange-400";
+    return "bg-green-500";
+  }
+
+  function getHealthTextColor(project: Project): string {
+    if (getProjectBudgetSummary(project, hourlyRates).isOverBudget) return "text-red-600";
+    if (!isProjectOnTrack(project)) return "text-orange-500";
+    return "text-green-600";
+  }
+
 </script>
 
-<div class="rounded-4xl shadow border border-gray-200 bg-base-100 p-4 overflow-x-auto flex-2 max-w-7xl justify-items-center-safe mx-auto px-6">
-  <div class="h-150 w-full">
-    <table class="table">
+<div class="w-full rounded-4xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+  <div class="overflow-x-auto max-h-[640px] overflow-y-auto">
+    <table class="table w-full">
       <thead>
-        <tr>
+        <tr class="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+          <th class="w-8 pl-4"></th>
           <th>{$t.projects.projectNumber}</th>
+          <th>{$t.projects.projectName}</th>
           <th>{$t.projects.customer}</th>
           <th>{$t.projects.projectManager}</th>
           <th>{$t.projects.budget}</th>
-          <th>{$t.common.status}</th> 
+          <th>{$t.common.status}</th>
           <th>{$t.projects.dueDate}</th>
         </tr>
       </thead>
-      <tbody class = "rounded-4xl">
+      <tbody>
         {#each projects as p, index}
           <tr
-            class={`cursor-pointer transition-colors ${
-              selectedRow === index ? "bg-blue-100" : "hover:bg-gray-100"
+            class={`cursor-pointer transition-colors border-b border-gray-100 last:border-0 ${
+              selectedRow === index ? "bg-blue-50" : "hover:bg-gray-50"
             }`}
             on:click={() => dispatch("rowSelect", { index, project: p })}
           >
-            <td>{p.projectID}</td>
-            <td>{p.customerName}</td>
-            <td>{p.projectManager}</td>
-            <td>{formatBudget(p.budget)}</td>
-            <td>{projectStatusLabel(p.projectstatus as ProjectStatus)}</td>
-            <td>{dueDateLabel(p.dueDate)}</td>
+            <td class="pl-4 pr-0">
+              <div class={`w-2.5 h-2.5 rounded-full ${getHealthColor(p)}`} title={getHealthLabel(p)}></div>
+            </td>
+            <td class="text-gray-500 text-sm">{p.projectID}</td>
+            <td class="font-medium text-gray-900">{p.title}</td>
+            <td class="text-gray-600">{p.customerName}</td>
+            <td class="text-gray-600">{p.projectManager}</td>
+            <td class="text-gray-700 font-mono text-sm">{formatBudget(p.budget)}</td>
+            <td>
+              <span class="badge badge-sm badge-ghost text-xs">
+                {projectStatusLabel(p.projectstatus as ProjectStatus)}
+              </span>
+            </td>
+            <td class="text-gray-600 text-sm">{dueDateLabel(p.dueDate)}</td>
           </tr>
 
           <!-- Preview Row -->
           {#if selectedRow === index}
-            <tr class="bg-base-200">
-              <td colspan="6" class="p-0">
-                <div class="p-6 space-y-4">
-                  <div class="grid grid-cols-3 gap-6">
+            <tr class="bg-gray-50">
+              <td colspan="8" class="p-0">
+                <div class="p-6 space-y-4 border-t border-gray-200">
+                  <div class="grid grid-cols-3 gap-4">
                     <!-- Current Phase -->
-                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                      <p class="text-sm font-medium text-gray-600 mb-2">{$t.projects.currentPhase}</p>
-                      <p class="text-2xl font-bold text-blue-600">
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{$t.projects.currentPhase}</p>
+                      <p class="text-xl font-bold text-blue-600">
                         {getPhaseLabel(getCurrentPhase(p))}
                       </p>
                     </div>
 
-                    <!-- On Track Status -->
-                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                      <p class="text-sm font-medium text-gray-600 mb-2">{$t.common.status}</p>
+                    <!-- Health Status -->
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{$t.common.status}</p>
                       <div class="flex items-center gap-2">
-                        <div
-                          class={`w-4 h-4 rounded-full ${
-                            isProjectOnTrack(p) ? "bg-green-500" : "bg-red-500"
-                          }`}
-                        ></div>
-                        <p class={`text-2xl font-bold ${isProjectOnTrack(p) ? 'text-green-600' : 'text-red-600'}`}>
-                          {isProjectOnTrack(p) ? $t.projects.onTrack : $t.projects.behind}
+                        <div class={`w-3 h-3 rounded-full ${getHealthColor(p)}`}></div>
+                        <p class={`text-xl font-bold ${getHealthTextColor(p)}`}>
+                          {getHealthLabel(p)}
                         </p>
                       </div>
                     </div>
 
                     <!-- Budget Usage -->
-                    <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                      <p class="text-sm font-medium text-gray-600 mb-2">{$t.projects.budgetUsage}</p>
-                      <p class={`text-2xl font-bold ${getProjectBudgetSummary(p, hourlyRates).percentageUsed > 100 ? "text-red-600" : "text-green-600"}`}>
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{$t.projects.budgetUsage}</p>
+                      <p class={`text-xl font-bold ${getProjectBudgetSummary(p, hourlyRates).isOverBudget ? "text-red-600" : "text-green-600"}`}>
                         {getProjectBudgetSummary(p, hourlyRates).percentageUsed.toFixed(0)}%
                       </p>
                     </div>
                   </div>
 
                   <!-- Budget Bar -->
-                  <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                  <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
                     <div class="mb-2 flex justify-between items-center">
                       <span class="text-sm font-medium text-gray-700">{$t.projects.budgetAllocation}</span>
-                      <span class="text-sm text-gray-600">
+                      <span class="text-sm text-gray-500">
                         {formatBudget(getProjectBudgetSummary(p, hourlyRates).assignedBudget)} / {formatBudget(p.budget)}
                       </span>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div class="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                       <div
-                        class={`h-3 rounded-full transition-all ${
-                          getProjectBudgetSummary(p, hourlyRates).percentageUsed > 100
-                            ? "bg-red-600"
-                            : "bg-green-500"
+                        class={`h-2.5 rounded-full transition-all ${
+                          getProjectBudgetSummary(p, hourlyRates).isOverBudget
+                            ? "bg-red-500"
+                            : getProjectBudgetSummary(p, hourlyRates).percentageUsed > 80
+                              ? "bg-orange-400"
+                              : "bg-green-500"
                         }`}
                         style={`width: ${Math.min(getProjectBudgetSummary(p, hourlyRates).percentageUsed, 100)}%`}
                       ></div>
                     </div>
-                    <div class="mt-3 flex justify-between text-xs text-gray-600">
+                    <div class="mt-2 flex justify-between text-xs text-gray-500">
                       <span>{$t.projects.assignedBudget}: {formatBudget(getProjectBudgetSummary(p, hourlyRates).assignedBudget)}</span>
                       <span>{$t.projects.reserve}: {formatBudget(getProjectBudgetSummary(p, hourlyRates).reserveBudget)}</span>
                     </div>
                   </div>
 
                   <!-- Task Summary -->
-                  <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                    <p class="text-sm font-medium text-gray-700 mb-2">{$t.projects.tasks}</p>
-                    <p class="text-lg font-semibold text-gray-900">
+                  <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{$t.projects.tasks}</p>
+                    <p class="text-xl font-semibold text-gray-900">
                       {p.Tasks.length} {p.Tasks.length === 1 ? $t.projects.taskName : $t.projects.tasks}
                     </p>
                   </div>

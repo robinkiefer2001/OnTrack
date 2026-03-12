@@ -33,6 +33,32 @@
   export let cancelNewProject: () => void;
 
   let timelineChartRef: InstanceType<typeof TimelineChart> | null = null;
+  let riskTitle = "";
+  let riskImpact: "Low" | "Medium" | "High" = "Medium";
+  let riskProbability: "Low" | "Medium" | "High" = "Medium";
+  let riskMitigation = "";
+
+  function addProjectRisk() {
+    if (!initProject || !riskTitle.trim()) return;
+    const next = {
+      id: `risk-${Date.now()}`,
+      title: riskTitle.trim(),
+      impact: riskImpact,
+      probability: riskProbability,
+      mitigation: riskMitigation.trim(),
+      isOpen: true,
+    };
+    initProject.risks = [...(initProject.risks || []), next];
+    riskTitle = "";
+    riskMitigation = "";
+    riskImpact = "Medium";
+    riskProbability = "Medium";
+  }
+
+  function removeProjectRisk(id: string) {
+    if (!initProject?.risks) return;
+    initProject.risks = initProject.risks.filter((risk) => risk.id !== id);
+  }
 </script>
 
 <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -40,56 +66,142 @@
     <div class="tabs tabs-lift content-center">
       <input type="radio" name="my_tabs_1" class="tab" aria-label={$t.projects.projectDetails} checked={true} />
       <div class="tab-content bg-base-100 border-base-300 p-6">
-        <div class="grid grid-cols-3 gap-6 mb-4">
-          <div class="flex-1">
-            <p class="text-2xl font-bold mb-4">{$t.projects.projectName}</p>
-            <input type="text" placeholder={$t.projects.typeHere} class="input" bind:value={initProject!.title} />
-          </div>
-          <div class="flex-1">
-            <p class="text-2xl font-bold mb-4">{$t.projects.customer}</p>
-            <input type="text" placeholder={$t.projects.typeHere} class="input" bind:value={initProject!.customerName} readonly required />
-            <button class="btn btn-neutral" on:click={selectCustomer}>{$t.projects.selectCustomer}</button>
-            {#if showCustomerSelect}
-              <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                <div class="bg-white p-4 rounded-lg shadow-xl w-80">
-                  <input type="text" placeholder={$t.projects.searchCustomer} class="input w-full mb-4" bind:value={customerSearchText} />
-                  <ul class="menu bg-base-100 w-full">
-                    {#each filteredCustomerList as c}
-                      <li>
-                        <button
-                          on:click={() => {
-                            initProject!.customerID = c.customerID;
-                            initProject!.customerName = c.companyName;
-                            showCustomerSelect = false;
-                          }}
-                        >
-                          {c.companyName}
-                        </button>
-                      </li>
-                    {/each}
-                  </ul>
-                  <button class="btn btn-neutral absolute top-4 right-4" on:click={() => (showCustomerSelect = false)}>{$t.common.close}</button>
+        <div class="rounded-2xl border border-base-300 bg-base-100 p-5 mb-5">
+          <h3 class="text-xl font-bold mb-4">{$t.projects.projectDetails}</h3>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label class="form-control w-full md:col-span-2">
+              <div class="label"><span class="label-text font-semibold">{$t.projects.projectName}</span></div>
+              <input type="text" placeholder={$t.projects.typeHere} class="input input-bordered w-full" bind:value={initProject!.title} />
+            </label>
+
+            <div class="form-control w-full md:col-span-2 relative">
+              <div class="label"><span class="label-text font-semibold">{$t.projects.customer}</span></div>
+              <button
+                type="button"
+                class="input input-bordered w-full flex items-center justify-between text-left"
+                on:click={selectCustomer}
+              >
+                <span class={initProject!.customerName ? "text-base-content" : "text-base-content/60"}>
+                  {initProject!.customerName || $t.projects.selectCustomer}
+                </span>
+                <span class="text-xs opacity-70">▼</span>
+              </button>
+
+              {#if showCustomerSelect}
+                <div class="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 rounded-xl border border-base-300 bg-base-100 p-3 shadow-xl">
+                  <input
+                    type="text"
+                    placeholder={$t.projects.searchCustomer}
+                    class="input input-bordered w-full mb-2"
+                    bind:value={customerSearchText}
+                  />
+                  <div class="max-h-56 overflow-y-auto rounded-lg border border-base-200">
+                    {#if filteredCustomerList.length > 0}
+                      <ul class="menu bg-base-100 w-full">
+                        {#each filteredCustomerList as c}
+                          <li>
+                            <button
+                              type="button"
+                              on:click={() => {
+                                initProject!.customerID = c.customerID;
+                                initProject!.customerName = c.companyName;
+                                showCustomerSelect = false;
+                              }}
+                            >
+                              {c.companyName}
+                            </button>
+                          </li>
+                        {/each}
+                      </ul>
+                    {:else}
+                      <p class="p-3 text-sm text-base-content/60">{$t.home.noAssignments}</p>
+                    {/if}
+                  </div>
+                  <div class="mt-2 flex justify-end">
+                    <button type="button" class="btn btn-sm btn-ghost" on:click={() => (showCustomerSelect = false)}>{$t.common.close}</button>
+                  </div>
                 </div>
-              </div>
-            {/if}
-          </div>
-          <div class="flex-1">
-            <h3 class="text-xl font-bold mb-4">{$t.projects.projectManager}</h3>
-            <input type="text" placeholder={$t.projects.typeHere} class="input" bind:value={initProject!.projectManager} />
-          </div>
-          <div class="flex-1">
-            <h3 class="text-xl font-bold mb-4">{$t.projects.budget}</h3>
-            <input type="number" placeholder={$t.projects.budgetPlaceholder} class="input" bind:value={initProject!.budget} min="0" step="0.01" />
-          </div>
-          <div class="flex-1">
-            <h3 class="text-xl font-bold mb-4">{$t.projects.startDate}</h3>
-            <input type="date" placeholder={$t.projects.typeHere} class="input" bind:value={initProject!.startDate} />
-          </div>
-          <div class="flex-1">
-            <h3 class="text-xl font-bold mb-4">{$t.projects.dueDate}</h3>
-            <input type="date" placeholder={$t.projects.typeHere} class="input" bind:value={initProject!.dueDate} />
+              {/if}
+            </div>
+
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text font-semibold">{$t.projects.projectManager}</span></div>
+              <input type="text" placeholder={$t.projects.typeHere} class="input input-bordered w-full" bind:value={initProject!.projectManager} />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text font-semibold">{$t.projects.budget}</span></div>
+              <input type="number" placeholder={$t.projects.budgetPlaceholder} class="input input-bordered w-full" bind:value={initProject!.budget} min="0" step="0.01" />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text font-semibold">{$t.projects.startDate}</span></div>
+              <input type="date" placeholder={$t.projects.typeHere} class="input input-bordered w-full" bind:value={initProject!.startDate} />
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text font-semibold">{$t.projects.dueDate}</span></div>
+              <input type="date" placeholder={$t.projects.typeHere} class="input input-bordered w-full" bind:value={initProject!.dueDate} />
+            </label>
           </div>
         </div>
+
+        <div class="divider"></div>
+        <h3 class="text-xl font-bold mb-4">Project Risks</h3>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <label class="form-control w-full">
+            <div class="label"><h3 class="text-lg font-bold mb-2">Risk Title</h3></div>
+            <input type="text" class="input" placeholder="Risk summary" bind:value={riskTitle} />
+          </label>
+          <label class="form-control w-full">
+            <div class="label"><h3 class="text-lg font-bold mb-2">Mitigation</h3></div>
+            <input type="text" class="input" placeholder="Mitigation action" bind:value={riskMitigation} />
+          </label>
+          <label class="form-control w-full">
+            <span class="label-text mb-2 block text-lg font-bold">Impact</span>
+            <select class="select select-bordered" bind:value={riskImpact}>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+          </label>
+          <label class="form-control w-full">
+            <span class="label-text mb-2 block text-lg font-bold">Probability</span>
+            <select class="select select-bordered" bind:value={riskProbability}>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+          </label>
+        </div>
+        <button type="button" class="btn btn-secondary mb-4" on:click={addProjectRisk} disabled={!riskTitle.trim()}>Add Risk</button>
+
+        {#if initProject?.risks && initProject.risks.length > 0}
+          <div class="overflow-x-auto mb-4">
+            <table class="table w-full">
+              <thead>
+                <tr>
+                  <th>Risk</th>
+                  <th>Impact</th>
+                  <th>Probability</th>
+                  <th>Mitigation</th>
+                  <th>{$t.projects.action}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each initProject.risks as risk (risk.id)}
+                  <tr>
+                    <td>{risk.title}</td>
+                    <td>{risk.impact}</td>
+                    <td>{risk.probability}</td>
+                    <td>{risk.mitigation || "-"}</td>
+                    <td><button type="button" class="btn btn-sm btn-error btn-outline" on:click={() => removeProjectRisk(risk.id)}>{$t.common.delete}</button></td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
       </div>
 
       <input type="radio" name="my_tabs_1" class="tab" aria-label={$t.projects.projectPhases} />
@@ -175,6 +287,14 @@
               {/each}
             </select>
           </label>
+          <label class="form-control w-full">
+            <div class="label"><h3 class="text-lg font-bold mb-2">Critical Task</h3></div>
+            <input type="checkbox" class="checkbox" bind:checked={newTask.isCritical} />
+          </label>
+          <label class="form-control w-full">
+            <div class="label"><h3 class="text-lg font-bold mb-2">Risk Note</h3></div>
+            <textarea class="textarea" rows="2" placeholder="Risk note for this task" bind:value={newTask.riskNote}></textarea>
+          </label>
         </div>
 
         <div class="divider"></div>
@@ -188,6 +308,8 @@
           <label class="form-control w-full"><div class="label"><h3 class="text-sm font-bold mb-2">{$t.projects.estimatedHours}</h3></div><input type="number" class="input input-sm" placeholder={$t.projects.subtaskHoursPlaceholder} bind:value={newSubtask.estimatedHours} min="0" step="0.5" /></label>
           <label class="form-control w-full"><div class="label"><h3 class="text-lg font-bold mb-2">{$t.projects.hourlyRateType}</h3></div><select class="select select-bordered w-full" bind:value={newSubtask.hourlyRateType}>{#each hourlyRates as rate (rate.rateID)}<option value={rate.rateType}>{rate.rateType}</option>{/each}</select></label>
           <label class="form-control w-full"><div class="label"><h3 class="text-lg font-bold mb-2">{$t.common.description}</h3></div><textarea class="textarea" rows="2" placeholder={$t.projects.subtaskDescriptionPlaceholder} bind:value={newSubtask.description}></textarea></label>
+          <label class="form-control w-full"><div class="label"><h3 class="text-lg font-bold mb-2">Critical Subtask</h3></div><input type="checkbox" class="checkbox" bind:checked={newSubtask.isCritical} /></label>
+          <label class="form-control w-full"><div class="label"><h3 class="text-lg font-bold mb-2">Risk Note</h3></div><textarea class="textarea" rows="2" placeholder="Risk note for this subtask" bind:value={newSubtask.riskNote}></textarea></label>
         </div>
 
         <button type="button" class="btn btn-secondary mb-4" on:click={addSubtask} disabled={!newSubtask.title.trim()}>{$t.projects.addSubtask}</button>
@@ -196,11 +318,13 @@
           <h4 class="text-lg font-bold mb-3">{$t.projects.currentSubtasks} ({currentTaskSubtasks.length})</h4>
           <div class="overflow-x-auto mb-4">
             <table class="table w-full">
-              <thead><tr><th>{$t.projects.subtasks}</th><th>{$t.projects.assignedTo}</th><th>{$t.common.hours}</th><th>{$t.projects.duration}</th><th>{$t.projects.action}</th></tr></thead>
+              <thead><tr><th>{$t.projects.subtasks}</th><th>Critical</th><th>Risk</th><th>{$t.projects.assignedTo}</th><th>{$t.common.hours}</th><th>{$t.projects.duration}</th><th>{$t.projects.action}</th></tr></thead>
               <tbody>
                 {#each currentTaskSubtasks as subtask (subtask.subtaskID)}
                   <tr>
                     <td><div><p class="font-semibold">{subtask.title}</p><p class="text-sm text-gray-500">{subtask.description || "-"}</p></div></td>
+                    <td>{subtask.isCritical ? "Yes" : "No"}</td>
+                    <td class="max-w-xs truncate">{subtask.riskNote || "-"}</td>
                     <td>{subtask.assignedTo || "-"}</td>
                     <td><span class="font-semibold">{subtask.estimatedHours || 0}h</span></td>
                     <td>
@@ -228,7 +352,7 @@
               <thead>
                 <tr>
                   <th><input type="checkbox" class="checkbox" checked={initProject.Tasks.length > 0 && selectedTasks.size === initProject.Tasks.length} on:change={toggleSelectAll} /></th>
-                  <th>{$t.projects.taskName}</th><th>{$t.common.description}</th><th>{$t.projects.assignedTo}</th><th>{$t.common.status}</th><th>{$t.projects.phase}</th><th>{$t.projects.dueDate}</th><th>{$t.projects.action}</th>
+                  <th>{$t.projects.taskName}</th><th>{$t.common.description}</th><th>Critical</th><th>Risk</th><th>{$t.projects.assignedTo}</th><th>{$t.common.status}</th><th>{$t.projects.phase}</th><th>{$t.projects.dueDate}</th><th>{$t.projects.action}</th>
                 </tr>
               </thead>
               <tbody>
@@ -237,6 +361,8 @@
                     <td><input type="checkbox" class="checkbox" checked={selectedTasks.has(task.taskID)} on:change={() => toggleTaskSelection(task.taskID)} /></td>
                     <td class="font-semibold">{task.title}</td>
                     <td class="max-w-xs truncate">{task.description || "-"}</td>
+                    <td>{task.isCritical ? "Yes" : "No"}</td>
+                    <td class="max-w-xs truncate">{task.riskNote || "-"}</td>
                     <td>{task.assignedTo || "-"}</td>
                     <td>
                       <span class="badge h-auto min-h-8 px-3 py-1 whitespace-nowrap" class:badge-neutral={task.status === "Pending"} class:badge-success={task.status === "Done"} class:badge-warning={task.status === "In Progress"} class:badge-info={task.status === "To Do"}>
