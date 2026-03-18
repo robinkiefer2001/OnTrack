@@ -1,131 +1,112 @@
+
 <script lang="ts">
-	import { api } from "$lib/api";
-	import type { CompanyEmployee } from "$lib/api";
-	import type { Customer, Project, Task } from "$lib/domain/project/types";
-	import { projectList } from "$lib/modules/projects/store";
-	import { t, currentLanguage } from "$lib/language";
-	import { buildProjectStateReportHtml } from "$lib/modules/projects/report";
-	import { loadHourlyRates } from "$lib/modules/projects/rates";
-	import { isProjectOnTrack, getProjectBudgetSummary } from "$lib/domain/project/services";
+import { get, derived } from "svelte/store";
+import { projectList } from "$lib/modules/projects/store";
+import { t } from "$lib/language";
+import { formatBudget, formatHours } from "$lib/utils/format";
+import { isProjectOnTrack, getProjectBudgetSummary } from "$lib/modules/projects/business";
+import { loadHourlyRates } from "$lib/domain/project/hourlyRates";
+import { buildProjectStateReportHtml } from "$lib/modules/projects/report";
 
-	// ── Data ──────────────────────────────────────────────────────────────
-	let employees = $state<CompanyEmployee[]>([]);
-	let customers = $state<Customer[]>([]);
+// Helper to get store value
+function getStore<T>(store: { subscribe: (fn: (v: T) => void) => () => void }): T {
+	let value: T;
+	store.subscribe((v: T) => value = v)();
+	return value!;
+}
 
-	$effect(() => {
-		api.getEmployees().then((e) => (employees = e));
-		api.getCustomers().then((c) => (customers = c));
-	});
+// Formatting helpers
+const fmt = (n: number | string) => typeof n === "number" ? n.toLocaleString("de-CH", { maximumFractionDigits: 1 }) : n;
+const fmtCurrency = (n: number | string) => typeof n === "number" ? n.toLocaleString("de-CH", { style: "currency", currency: "CHF", maximumFractionDigits: 0 }) : n;
 
-	// ── View ──────────────────────────────────────────────────────────────
-	type ViewMode = "templates" | "budget" | "workload" | "milestone" | "delayrisk" | "projectstatus" | "builder";
-	let currentView = $state<ViewMode>("templates");
-	let printPreviewHtml = $state("");
-	let showPrintPreview = $state(false);
 
-	// ── Helpers ───────────────────────────────────────────────────────────
-	const fmt = (n: number) => n.toLocaleString("de-CH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-	const fmtCurrency = (n: number) => `CHF ${n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-	function allTasks(projects: Project[]): (Task & { projectTitle: string; projectID: number })[] {
-		const result: (Task & { projectTitle: string; projectID: number })[] = [];
-		for (const p of projects) {
-			for (const task of p.Tasks || []) {
-				result.push({ ...task, projectTitle: p.title, projectID: p.projectID! });
+// ── Budget Report Data ────────────────────────────────────────────────
+let budgetData = derived(projectList, ($projectList) => {
+	// Aggregate budget data across all projects
+	let totalBudget = 0;
+	let totalEstimatedCost = 0;
+	let totalEstimatedHours = 0;
+	let overrun = 0;
+	let hoursPerEmployee: { name: string; hours: number }[] = [];
+	let costPerPhase: { phase: string; hours: number; cost: number }[] = [];
+	const employeeHours: Record<string, number> = {};
+	const phaseCosts: Record<string, { hours: number; cost: number }> = {};
+	for (const project of $projectList) {
+		totalBudget += project.budget ?? 0;
+		const tasks = project.Tasks || [];
+		for (const task of tasks) {
+			totalEstimatedHours += task.estimatedHours ?? 0;
+			totalEstimatedCost += (task.estimatedHours ?? 0) * 120; // Assume flat rate for demo
+			if (task.assignedTo) {
+				employeeHours[task.assignedTo] = (employeeHours[task.assignedTo] || 0) + (task.estimatedHours ?? 0);
+			}
+			if (task.phaseId) {
+				if (!phaseCosts[task.phaseId]) phaseCosts[task.phaseId] = { hours: 0, cost: 0 };
+				phaseCosts[task.phaseId].hours += task.estimatedHours ?? 0;
+				phaseCosts[task.phaseId].cost += (task.estimatedHours ?? 0) * 120;
 			}
 		}
-		return result;
+		overrun += Math.max(0, totalEstimatedCost - totalBudget);
 	}
+	hoursPerEmployee = Object.entries(employeeHours).map(([name, hours]) => ({ name, hours }));
+	costPerPhase = Object.entries(phaseCosts).map(([phase, { hours, cost }]) => ({ phase, hours, cost }));
+	return {
+		totalBudget,
+		totalEstimatedCost,
+		totalEstimatedHours,
+		overrun: totalEstimatedCost - totalBudget,
+		hoursPerEmployee,
+		costPerPhase
+	};
+});
 
-	// ── Budget Report Data ───────────────────────────────────────────────
-	let budgetData = $derived.by(() => {
-		const projects = $projectList;
-		const totalBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
-		const tasks = allTasks(projects);
-		const totalEstimatedHours = tasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0);
-
-		// Hours per employee
-		const hoursMap = new Map<string, number>();
+// ── Workload Report Data ──────────────────────────────────────────────
+let workloadData = derived(projectList, ($projectList) => {
+	// Aggregate workload data across all projects
+	let totalTasks = 0;
+	let employeeWorkload: { name: string; assigned: number; monthlyCapacity: number; employmentPercent: number; weeklyCapacity: number; overloaded: boolean }[] = [];
+	let upcomingDeadlines: { title: string; projectTitle: string; assignedTo: string; dueDate: string; taskID: number }[] = [];
+	let taskDistribution: { status: string; count: number }[] = [];
+	const employeeMap: Record<string, { assigned: number; monthlyCapacity: number; employmentPercent: number; weeklyCapacity: number; overloaded: boolean }> = {};
+	const statusMap: Record<string, number> = {};
+	for (const project of $projectList) {
+		const tasks = project.Tasks || [];
+		totalTasks += tasks.length;
 		for (const task of tasks) {
 			if (task.assignedTo) {
-				hoursMap.set(task.assignedTo, (hoursMap.get(task.assignedTo) ?? 0) + (task.estimatedHours ?? 0));
+				if (!employeeMap[task.assignedTo]) employeeMap[task.assignedTo] = { assigned: 0, monthlyCapacity: 160, employmentPercent: 100, weeklyCapacity: 40, overloaded: false };
+				employeeMap[task.assignedTo].assigned += task.estimatedHours ?? 0;
+				// Overload if assigned > monthlyCapacity
+				employeeMap[task.assignedTo].overloaded = employeeMap[task.assignedTo].assigned > employeeMap[task.assignedTo].monthlyCapacity;
+			}
+			if (task.status) {
+				statusMap[task.status] = (statusMap[task.status] || 0) + 1;
+			}
+			if (task.dueDate) {
+				const due = new Date(task.dueDate);
+				if (due > new Date()) {
+					upcomingDeadlines.push({ title: task.title, projectTitle: project.title, assignedTo: task.assignedTo ?? "", dueDate: due.toISOString(), taskID: task.taskID });
+				}
 			}
 		}
-		const hoursPerEmployee = Array.from(hoursMap.entries())
-			.map(([name, hours]) => ({ name, hours }))
-			.sort((a, b) => b.hours - a.hours);
-
-		// Cost per phase
-		const phaseMap = new Map<string, number>();
-		for (const task of tasks) {
-			const phase = task.projectPhase || "Unassigned";
-			phaseMap.set(phase, (phaseMap.get(phase) ?? 0) + (task.estimatedHours ?? 0));
-		}
-		const costPerPhase = Array.from(phaseMap.entries())
-			.map(([phase, hours]) => ({ phase, hours, cost: hours * 120 }))
-			.sort((a, b) => b.cost - a.cost);
-
-		const totalEstimatedCost = totalEstimatedHours * 120;
-		const overrun = totalEstimatedCost - totalBudget;
-
-		return { totalBudget, totalEstimatedHours, totalEstimatedCost, overrun, hoursPerEmployee, costPerPhase };
-	});
-
-	// ── Workload Report Data ─────────────────────────────────────────────
-	let workloadData = $derived.by(() => {
-		const projects = $projectList;
-		const tasks = allTasks(projects);
-		const today = new Date();
-		const nextWeek = new Date(today);
-		nextWeek.setDate(nextWeek.getDate() + 7);
-
-		const assignmentMap = new Map<string, { assigned: number; tasks: number; overdue: number }>();
-		for (const task of tasks) {
-			if (!task.assignedTo) continue;
-			const entry = assignmentMap.get(task.assignedTo) ?? { assigned: 0, tasks: 0, overdue: 0 };
-			entry.assigned += task.estimatedHours ?? 0;
-			entry.tasks += 1;
-			if (task.status !== "Done" && task.dueDate && new Date(task.dueDate) < today) {
-				entry.overdue += 1;
-			}
-			assignmentMap.set(task.assignedTo, entry);
-		}
-
-		// Build capacity-aware workload
-		const employeeWorkload = Array.from(assignmentMap.entries())
-			.map(([name, data]) => {
-				const emp = employees.find((e) => `${e.firstName} ${e.lastName}` === name);
-				const pct = emp?.employmentPercent ?? 100;
-				const hpw = emp?.defaultHoursPerWeek ?? 42;
-				const weeklyCapacity = Math.round((pct / 100) * hpw * 10) / 10;
-				const monthlyCapacity = Math.round(weeklyCapacity * 4.33 * 10) / 10;
-				return { name, ...data, employmentPercent: pct, hoursPerWeek: hpw, weeklyCapacity, monthlyCapacity, overloaded: data.assigned > monthlyCapacity };
-			})
-			.sort((a, b) => b.assigned - a.assigned);
-
-		const upcomingDeadlines = tasks
-			.filter((t) => t.status !== "Done" && t.dueDate && new Date(t.dueDate) >= today && new Date(t.dueDate) <= nextWeek)
-			.sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
-			.slice(0, 15);
-
-		// Task distribution by status
-		const statusMap = new Map<string, number>();
-		for (const task of tasks) {
-			statusMap.set(task.status, (statusMap.get(task.status) ?? 0) + 1);
-		}
-		const taskDistribution = Array.from(statusMap.entries())
-			.map(([status, count]) => ({ status, count }));
-
-		return { employeeWorkload, upcomingDeadlines, taskDistribution, totalTasks: tasks.length };
-	});
+	}
+	employeeWorkload = Object.entries(employeeMap).map(([name, v]) => ({ name, ...v }));
+	taskDistribution = Object.entries(statusMap).map(([status, count]) => ({ status, count }));
+	return {
+		totalTasks,
+		employeeWorkload,
+		upcomingDeadlines,
+		taskDistribution
+	};
+});
 
 	// ── Milestone Report Data ────────────────────────────────────────────
-	let milestoneData = $derived.by(() => {
+	let milestoneData = derived(projectList, ($projectList) => {
 		const projects = $projectList;
 
 		return projects.slice(0, 20).map((project) => {
 			const tasks = project.Tasks || [];
-			const doneTasks = tasks.filter((t) => t.status === "Done");
+			const doneTasks = tasks.filter((t: any) => t.status === "Done");
 			const totalTasks = tasks.length;
 			const progress = totalTasks === 0 ? 0 : Math.round((doneTasks.length / totalTasks) * 100);
 
@@ -135,10 +116,10 @@
 				...project.executionPhase,
 				...project.closurePhase,
 			];
-			const completedPhases = phases.filter((p) => p.dueDate && new Date(p.dueDate) < new Date());
-			const nextPhase = phases.find((p) => p.dueDate && new Date(p.dueDate) >= new Date());
+			const completedPhases = phases.filter((p: any) => p.dueDate && new Date(p.dueDate) < new Date());
+			const nextPhase = phases.find((p: any) => p.dueDate && new Date(p.dueDate) >= new Date());
 
-			const customerName = customers.find((c) => c.customerID === project.customerID)?.companyName ?? "-";
+			const customerName = "-";
 
 			return {
 				projectTitle: project.title,
@@ -155,21 +136,17 @@
 	});
 
 	// ── Delay & Risk Report Data ─────────────────────────────────────────
-	let delayRiskData = $derived.by(() => {
-		const projects = $projectList;
-		const tasks = allTasks(projects);
+	let delayRiskData = (() => {
+		const projects = get(projectList);
+		const tasks = projects.flatMap((p: any) => (p.Tasks || []).map((t: any) => ({ ...t, projectTitle: p.title })));
 		const today = new Date();
-
 		const overdueTasks = tasks
 			.filter((t) => t.status !== "Done" && t.dueDate && new Date(t.dueDate) < today)
 			.sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-
 		const unassignedTasks = tasks.filter((t) => !t.assignedTo || t.assignedTo.trim() === "");
-
 		const excessiveHoursTasks = tasks
 			.filter((t) => (t.estimatedHours ?? 0) > 80)
 			.sort((a, b) => (b.estimatedHours ?? 0) - (a.estimatedHours ?? 0));
-
 		const phasesBehind = projects.flatMap((p) => {
 			const allPhases = [
 				...p.initiationPhase.map((ph) => ({ ...ph, projectTitle: p.title })),
@@ -179,26 +156,25 @@
 			];
 			return allPhases.filter((ph) => ph.dueDate && new Date(ph.dueDate) < today && p.projectstatus !== "Closed" && p.projectstatus !== "Cancelled");
 		});
-
 		return { overdueTasks, unassignedTasks, excessiveHoursTasks, phasesBehind };
-	});
+	})();
 
 	// ── Project Status Report Data ───────────────────────────────────────
-	let projectStatusData = $derived.by(() => {
+	let projectStatusData = derived(projectList, ($projectList) => {
 		const projects = $projectList;
 		return projects.map((project) => {
 			const tasks = project.Tasks || [];
 			const totalTasks = tasks.length;
-			const doneTasks = tasks.filter((t) => t.status === "Done").length;
-			const inProgressTasks = tasks.filter((t) => t.status === "In Progress").length;
-			const pendingTasks = tasks.filter((t) => t.status === "Pending" || t.status === "To Do").length;
-			const overdueTasks = tasks.filter((t) => t.status !== "Done" && t.dueDate && new Date(t.dueDate) < new Date()).length;
+			const doneTasks = tasks.filter((t: any) => t.status === "Done").length;
+			const inProgressTasks = tasks.filter((t: any) => t.status === "In Progress").length;
+			const pendingTasks = tasks.filter((t: any) => t.status === "Pending" || t.status === "To Do").length;
+			const overdueTasks = tasks.filter((t: any) => t.status !== "Done" && t.dueDate && new Date(t.dueDate) < new Date()).length;
 			const progress = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
-			const totalHours = tasks.reduce((s, t) => s + (t.estimatedHours ?? 0), 0);
+			const totalHours = tasks.reduce((s: number, t: any) => s + (t.estimatedHours ?? 0), 0);
 			const budget = project.budget ?? 0;
 			const estimatedCost = totalHours * 120;
 			const budgetUsage = budget > 0 ? Math.round((estimatedCost / budget) * 100) : 0;
-			const customerName = customers.find((c) => c.customerID === project.customerID)?.companyName ?? "-";
+			const customerName = "-";
 			const hourlyRates = loadHourlyRates();
 			const onTrack = isProjectOnTrack(project);
 			const overBudget = getProjectBudgetSummary(project, hourlyRates).isOverBudget;
@@ -219,163 +195,19 @@
 		});
 	});
 
+	// ── UI State ─────────────────────────────────────────────────────────
+	let currentView = $state("templates");
+	let printPreviewHtml = $state("");
+	let showPrintPreview = $state(false);
+
 	// ── Print Functions ──────────────────────────────────────────────────
 	function printCurrentReport() {
 		const reportArea = document.getElementById("report-printable");
 		if (!reportArea) return;
-		const printWindow = window.open("", "_blank", "width=1000,height=900");
-		if (!printWindow) return;
-		printWindow.document.open();
-		printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>OnTrack Report</title>
-			<style>
-				* { margin: 0; padding: 0; box-sizing: border-box; }
-				body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #111; font-size: 13px; }
-				h1 { font-size: 22px; margin-bottom: 8px; }
-				h2 { font-size: 16px; margin: 18px 0 8px; }
-				h3 { font-size: 14px; margin: 12px 0 6px; }
-				table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-				th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; font-size: 12px; }
-				th { background: #f5f5f5; font-weight: 600; }
-				.kpi { display: inline-block; border: 1px solid #ddd; border-radius: 8px; padding: 10px 18px; margin: 4px 6px 4px 0; text-align: center; }
-				.kpi-value { font-size: 22px; font-weight: 700; }
-				.kpi-label { font-size: 11px; color: #666; margin-top: 2px; }
-				.bar-bg { background: #e5e7eb; height: 8px; border-radius: 4px; }
-				.bar-fill { height: 8px; border-radius: 4px; }
-				.text-red { color: #dc2626; }
-				.text-green { color: #16a34a; }
-				.text-blue { color: #2563eb; }
-				.badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
-				.footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
-				@media print { body { padding: 12px; } }
-			</style></head><body>`);
-		printWindow.document.write(reportArea.innerHTML);
-		printWindow.document.write(`<div class="footer">OnTrack Report — Generated ${new Date().toLocaleDateString("de-CH")} ${new Date().toLocaleTimeString("de-CH")}</div>`);
-		printWindow.document.write("</body></html>");
-		printWindow.document.close();
-		printWindow.focus();
-		printWindow.print();
-	}
-
-	function printProjectStateReport(project: Project) {
-		const hourlyRates = loadHourlyRates();
-		const reportHtml = buildProjectStateReportHtml(project, hourlyRates, "", $currentLanguage);
-		const printWindow = window.open("", "_blank", "width=1000,height=900");
-		if (!printWindow) return;
-		printWindow.document.open();
-		printWindow.document.write(reportHtml);
-		printWindow.document.close();
-		printWindow.focus();
-		printWindow.print();
-	}
-
-	function openPrintPreview() {
-		const reportArea = document.getElementById("report-printable");
-		if (!reportArea) return;
-		printPreviewHtml = reportArea.innerHTML;
-		showPrintPreview = true;
-	}
-
-	function generateBuilderReportHtml(): string {
-		const date = new Date().toLocaleDateString("de-CH");
-		const time = new Date().toLocaleTimeString("de-CH");
-		const reportTitle = customReportName || "Custom Report";
-		let sections = "";
-
-		if (selectedDataSets.includes("budgetVsActual")) {
-			sections += `<div class="section"><h2>${$t.reports.budgetVsActual}</h2>
-				<div class="kpi-row">
-					<div class="kpi"><div class="kpi-value">${fmtCurrency(budgetData.totalBudget)}</div><div class="kpi-label">Budget</div></div>
-					<div class="kpi"><div class="kpi-value text-blue">${fmtCurrency(budgetData.totalEstimatedCost)}</div><div class="kpi-label">${$t.common.cost}</div></div>
-					<div class="kpi"><div class="kpi-value ${budgetData.overrun > 0 ? 'text-red' : 'text-green'}">${fmtCurrency(budgetData.overrun)}</div><div class="kpi-label">Diff</div></div>
-				</div></div>`;
-		}
-		if (selectedDataSets.includes("hoursPerEmployee")) {
-			let rows = budgetData.hoursPerEmployee.map(r => `<tr><td>${r.name}</td><td class="text-right">${fmt(r.hours)}h</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.hoursPerEmployee}</h2><table><thead><tr><th>Name</th><th class="text-right">${$t.common.hours}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("costPerPhase")) {
-			let rows = budgetData.costPerPhase.map(r => `<tr><td>${r.phase}</td><td class="text-right">${fmt(r.hours)}h</td><td class="text-right">${fmtCurrency(r.cost)}</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.costPerPhase}</h2><table><thead><tr><th>Phase</th><th class="text-right">${$t.common.hours}</th><th class="text-right">${$t.common.cost}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("forecastedOverrun")) {
-			sections += `<div class="section"><h2>${$t.reports.forecastedOverrun}</h2>
-				<div class="kpi"><div class="kpi-value ${budgetData.overrun > 0 ? 'text-red' : 'text-green'}">${fmtCurrency(budgetData.overrun)}</div></div></div>`;
-		}
-		if (selectedDataSets.includes("hoursAssigned")) {
-			let rows = workloadData.employeeWorkload.map(r => {
-				const util = r.monthlyCapacity > 0 ? Math.round((r.assigned / r.monthlyCapacity) * 100) : 0;
-				return `<tr><td>${r.name}</td><td class="text-right">${fmt(r.assigned)}h</td><td class="text-right">${fmt(r.monthlyCapacity)}h</td><td class="text-right ${util > 100 ? 'text-red' : ''}">${util}%</td></tr>`;
-			}).join("");
-			sections += `<div class="section"><h2>${$t.reports.hoursAssigned}</h2><table><thead><tr><th>Name</th><th class="text-right">Assigned</th><th class="text-right">Capacity</th><th class="text-right">${$t.reports.utilization}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("overloadDetection")) {
-			const overloaded = workloadData.employeeWorkload.filter(e => e.overloaded);
-			if (overloaded.length > 0) {
-				let rows = overloaded.map(r => `<tr><td>${r.name}</td><td class="text-right text-red">${fmt(r.assigned)}h / ${fmt(r.monthlyCapacity)}h</td></tr>`).join("");
-				sections += `<div class="section"><h2 class="text-red">${$t.reports.overloadDetection}</h2><table><thead><tr><th>Name</th><th class="text-right">Assigned / Capacity</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-			} else {
-				sections += `<div class="section"><h2>${$t.reports.overloadDetection}</h2><p class="text-muted">— No overloaded employees</p></div>`;
-			}
-		}
-		if (selectedDataSets.includes("upcomingDeadlines")) {
-			let rows = workloadData.upcomingDeadlines.map(t => `<tr><td>${t.title}</td><td>${t.projectTitle}</td><td>${t.assignedTo}</td><td>${new Date(t.dueDate!).toLocaleDateString("de-CH")}</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.upcomingDeadlines}</h2><table><thead><tr><th>Task</th><th>Project</th><th>Assigned</th><th>Due</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="text-muted">—</td></tr>'}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("taskDistribution")) {
-			let rows = workloadData.taskDistribution.map(r => `<tr><td><span class="badge">${r.status}</span></td><td class="text-right">${r.count}</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.taskDistribution}</h2><table><thead><tr><th>Status</th><th class="text-right">Count</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("milestonesAchieved")) {
-			let rows = milestoneData.map(r => `<tr><td>${r.projectTitle}</td><td>${r.customerName}</td><td class="text-right">${r.progress}%</td><td class="text-right">${r.completedPhases}/${r.totalPhases}</td><td>${r.nextPhase}</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.milestonesAchieved}</h2><table><thead><tr><th>Project</th><th>Customer</th><th class="text-right">${$t.reports.progress}</th><th class="text-right">Phases</th><th>Next</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("deliverables")) {
-			let rows = milestoneData.map(r => `<tr><td>${r.projectTitle}</td><td class="text-right">${r.doneTasks}/${r.totalTasks}</td><td class="text-right">${r.progress}%</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.deliverables}</h2><table><thead><tr><th>Project</th><th class="text-right">Tasks</th><th class="text-right">${$t.reports.progress}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("overdueTasks")) {
-			let rows = delayRiskData.overdueTasks.map(t => {
-				const days = Math.floor((Date.now() - new Date(t.dueDate!).getTime()) / 86400000);
-				return `<tr><td>${t.title}</td><td>${t.projectTitle}</td><td>${t.assignedTo}</td><td class="text-red">${days}d overdue</td></tr>`;
-			}).join("");
-			sections += `<div class="section"><h2 class="text-red">${$t.reports.overdueTasks}</h2><table><thead><tr><th>Task</th><th>Project</th><th>Assigned</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="text-muted">—</td></tr>'}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("unassignedTasks")) {
-			let rows = delayRiskData.unassignedTasks.map(t => `<tr><td>${t.title}</td><td>${t.projectTitle}</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.unassignedTasks}</h2><table><thead><tr><th>Task</th><th>Project</th></tr></thead><tbody>${rows || '<tr><td colspan="2" class="text-muted">—</td></tr>'}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("excessiveHours")) {
-			let rows = delayRiskData.excessiveHoursTasks.map(t => `<tr><td>${t.title}</td><td>${t.projectTitle}</td><td class="text-right">${t.estimatedHours}h</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.excessiveHours}</h2><table><thead><tr><th>Task</th><th>Project</th><th class="text-right">${$t.common.hours}</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="text-muted">—</td></tr>'}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("phasesBehind")) {
-			let rows = delayRiskData.phasesBehind.map(p => `<tr><td>${p.projectTitle}</td><td>${p.phaseName}</td><td>${p.dueDate ? new Date(p.dueDate).toLocaleDateString("de-CH") : "-"}</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.phasesBehind}</h2><table><thead><tr><th>Project</th><th>Phase</th><th>Due</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="text-muted">—</td></tr>'}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("capacityPlanning")) {
-			let rows = workloadData.employeeWorkload.map(r => {
-				const util = r.monthlyCapacity > 0 ? Math.round((r.assigned / r.monthlyCapacity) * 100) : 0;
-				return `<tr><td>${r.name}</td><td class="text-right">${r.employmentPercent}%</td><td class="text-right">${r.weeklyCapacity}h</td><td class="text-right">${fmt(r.monthlyCapacity)}h</td><td class="text-right">${fmt(r.assigned)}h</td><td class="text-right ${util > 100 ? 'text-red' : util > 80 ? 'text-orange' : 'text-green'}">${util}%</td></tr>`;
-			}).join("");
-			sections += `<div class="section"><h2>${$t.reports.capacityPlanning}</h2><table><thead><tr><th>Name</th><th class="text-right">Empl.%</th><th class="text-right">${$t.reports.week}</th><th class="text-right">Month</th><th class="text-right">Assigned</th><th class="text-right">${$t.reports.utilization}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("projectOverview")) {
-			let rows = projectStatusData.map(p => {
-				const hc = p.health === "overBudget" ? "#dc2626" : p.health === "behind" ? "#f97316" : "#22c55e";
-				return `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${hc};margin-right:6px;vertical-align:middle"></span>${p.title}</td><td>${p.status}</td><td>${p.customerName}</td><td class="text-right">${p.progress}%</td></tr>`;
-			}).join("");
-			sections += `<div class="section"><h2>${$t.reports.projectOverview}</h2><table><thead><tr><th>Project</th><th>Status</th><th>Customer</th><th class="text-right">${$t.reports.progress}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("projectProgress")) {
-			let rows = projectStatusData.map(p => `<tr><td>${p.title}</td><td class="text-right">${p.doneTasks}/${p.totalTasks}</td><td><div class="bar-bg"><div class="bar-fill" style="width:${p.progress}%;background:#3b82f6"></div></div></td><td class="text-right">${p.progress}%</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.projectProgress}</h2><table><thead><tr><th>Project</th><th class="text-right">${$t.reports.tasks}</th><th style="width:30%">Progress</th><th class="text-right">%</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-		if (selectedDataSets.includes("projectBudgetUsage")) {
-			let rows = projectStatusData.map(p => `<tr><td>${p.title}</td><td class="text-right">${fmtCurrency(p.estimatedCost)}</td><td class="text-right">${fmtCurrency(p.budget)}</td><td class="text-right ${p.budgetUsage > 100 ? 'text-red' : p.budgetUsage > 80 ? 'text-orange' : 'text-green'}">${p.budgetUsage}%</td></tr>`).join("");
-			sections += `<div class="section"><h2>${$t.reports.projectBudgetUsage}</h2><table><thead><tr><th>Project</th><th class="text-right">${$t.common.cost}</th><th class="text-right">${$t.reports.budget}</th><th class="text-right">Usage</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-		}
-
-		return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${reportTitle} — OnTrack</title>
+		const w = window.open("", "_blank", "width=1000,height=900");
+		if (!w) return;
+		w.document.open();
+		w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>OnTrack Report</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; padding: 32px 40px; color: #111827; font-size: 13px; line-height: 1.5; }
@@ -402,11 +234,335 @@ tr:hover { background: #f9fafb; }
 .bar-fill { height: 8px; border-radius: 4px; }
 .footer { margin-top: 32px; padding-top: 14px; border-top: 2px solid #e5e7eb; font-size: 11px; color: #9ca3af; display: flex; justify-content: space-between; }
 @media print { body { padding: 16px; } .section { break-inside: avoid; } }
+</style></head><body>`);
+		w.document.write(reportArea.innerHTML);
+		w.document.write("</body></html>");
+		w.document.close();
+		w.focus();
+		w.print();
+	}
+
+	function generateBuilderReportHtml(): string {
+		const tr = get(t);
+		const date = new Date().toLocaleDateString("de-CH");
+		const time = new Date().toLocaleTimeString("de-CH");
+		const dateFormatted = new Date().toLocaleDateString("de-CH", { year: "numeric", month: "long", day: "numeric" });
+		const reportTitle = customReportName.trim() || "Portfolio-Bericht";
+
+		const _budgetData = getStore(budgetData);
+		const _workloadData = getStore(workloadData);
+		const _milestoneData = getStore(milestoneData);
+		const _projectStatusData = getStore(projectStatusData);
+		const sel = selectedDataSets;
+
+		// ── Category flags ───────────────────────────────────────────────
+		const hasBudget = sel.some((d) => ["budgetVsActual","hoursPerEmployee","costPerPhase","forecastedOverrun"].includes(d));
+		const hasWorkload = sel.some((d) => ["hoursAssigned","overloadDetection","capacityPlanning","upcomingDeadlines","taskDistribution"].includes(d));
+		const hasMilestone = sel.some((d) => ["milestonesAchieved","deliverables"].includes(d));
+		const hasRisk = sel.some((d) => ["overdueTasks","unassignedTasks","excessiveHours","phasesBehind"].includes(d));
+		const hasProject = sel.some((d) => ["projectOverview","projectProgress","projectBudgetUsage"].includes(d));
+
+		// ── Computed Metrics ─────────────────────────────────────────────
+		const budgetUsagePct = _budgetData.totalBudget > 0 ? (_budgetData.totalEstimatedCost / _budgetData.totalBudget) * 100 : 0;
+		const overrunPct = _budgetData.totalBudget > 0 ? Math.round((_budgetData.overrun / _budgetData.totalBudget) * 100) : 0;
+		const topPhases = [..._budgetData.costPerPhase].sort((a: any, b: any) => b.cost - a.cost);
+		const topEmpHours = [..._budgetData.hoursPerEmployee].sort((a: any, b: any) => b.hours - a.hours);
+		const avgHours = topEmpHours.length > 0 ? topEmpHours.reduce((s: number, e: any) => s + e.hours, 0) / topEmpHours.length : 0;
+		const totalCostPhases = topPhases.reduce((s: number, p: any) => s + p.cost, 0);
+
+		const overloadedEmps = _workloadData.employeeWorkload.filter((e: any) => e.overloaded);
+		const totalEmps = _workloadData.employeeWorkload.length;
+		const avgUtilization = totalEmps > 0 ? Math.round(_workloadData.employeeWorkload.reduce((s: number, e: any) => s + (e.monthlyCapacity > 0 ? (e.assigned / e.monthlyCapacity) * 100 : 0), 0) / totalEmps) : 0;
+		const doneTasks = _workloadData.taskDistribution.find((d: any) => d.status === "Done")?.count ?? 0;
+		const completionRate = _workloadData.totalTasks > 0 ? Math.round((doneTasks / _workloadData.totalTasks) * 100) : 0;
+
+		const totalProjects = _projectStatusData.length;
+		const onTrackCount = _projectStatusData.filter((p: any) => p.health === "onTrack").length;
+		const behindCount = _projectStatusData.filter((p: any) => p.health === "behind").length;
+		const overBudgetCount = _projectStatusData.filter((p: any) => p.health === "overBudget").length;
+		const avgProjProgress = totalProjects > 0 ? Math.round(_projectStatusData.reduce((s: number, p: any) => s + p.progress, 0) / totalProjects) : 0;
+
+		const overdueCount = delayRiskData.overdueTasks.length;
+		const unassignedCount = delayRiskData.unassignedTasks.length;
+		const excessiveCount = delayRiskData.excessiveHoursTasks.length;
+		const phasesBehindCount = delayRiskData.phasesBehind.length;
+		const avgMilestoneProgress = _milestoneData.length > 0 ? Math.round(_milestoneData.reduce((s: number, p: any) => s + p.progress, 0) / _milestoneData.length) : 0;
+
+		// ── Helper: inline progress bar ────────────────────────────────
+		function bar(pct: number, color = "#3b82f6"): string {
+			const p = Math.min(Math.max(pct, 0), 100);
+			return `<div style="background:#e5e7eb;height:8px;border-radius:4px;overflow:hidden;margin-top:4px;min-width:80px;"><div style="height:8px;border-radius:4px;background:${color};width:${p}%;"></div></div>`;
+		}
+		function healthColor(h: string): string {
+			return h === "overBudget" ? "#dc2626" : h === "behind" ? "#ea580c" : "#16a34a";
+		}
+
+		// ── Executive Summary ────────────────────────────────────────────
+		const execPoints: string[] = [];
+		if (hasBudget && _budgetData.totalBudget > 0) {
+			execPoints.push(_budgetData.overrun > 0
+				? `Das Portfolio verzeichnet eine prognostizierte Budgetüberschreitung von <strong>${fmtCurrency(_budgetData.overrun)}</strong> (${overrunPct}% über dem Planbudget von ${fmtCurrency(_budgetData.totalBudget)}).`
+				: `Das Portfolio liegt budgetseitig im Plan: Geschätzte Kosten ${fmtCurrency(_budgetData.totalEstimatedCost)} innerhalb des Budgets von <strong>${fmtCurrency(_budgetData.totalBudget)}</strong>.`);
+			if (topPhases.length > 0) execPoints.push(`Kostenintensivste Phase: <strong>«${topPhases[0].phase}»</strong> mit ${fmtCurrency(topPhases[0].cost)} (${fmt(topPhases[0].hours)} Std.).`);
+		}
+		if (hasProject && totalProjects > 0) {
+			execPoints.push(`${totalProjects} Projekte im Portfolio — <strong style="color:#16a34a">${onTrackCount} im Zeitplan</strong>, <span style="color:#ea580c">${behindCount} verzögert</span>, <span style="color:#dc2626">${overBudgetCount} über Budget</span>. Ø Fortschritt: ${avgProjProgress}%.`);
+		}
+		if (hasWorkload && totalEmps > 0) {
+			execPoints.push(overloadedEmps.length > 0
+				? `<strong style="color:#dc2626">${overloadedEmps.length} von ${totalEmps} Mitarbeitenden überlastet</strong> — Kapazitätsrebalancing empfohlen. Ø Auslastung: ${avgUtilization}%.`
+				: `Kapazitätsseitig stabil: alle ${totalEmps} Mitarbeitenden im grünen Bereich. Ø Auslastung: ${avgUtilization}%.`);
+		}
+		if (hasMilestone && _milestoneData.length > 0) {
+			execPoints.push(`Meilensteine über ${_milestoneData.length} Projekte: Ø Fortschritt <strong>${avgMilestoneProgress}%</strong>.`);
+		}
+		if (hasRisk && (overdueCount + unassignedCount + phasesBehindCount) > 0) {
+			execPoints.push(`Offene Risiken: <strong style="color:#dc2626">${overdueCount} überfällige Tasks</strong>, ${unassignedCount} nicht zugewiesen, ${phasesBehindCount} Phasen hinter Zeitplan.`);
+		}
+		if (execPoints.length === 0) execPoints.push(`Bericht aus ${sel.length} Datensätzen generiert — keine ausreichenden Portfoliodaten für eine automatische Zusammenfassung.`);
+
+		// ── Risk Detection ───────────────────────────────────────────────
+		const risks: { level: "high" | "medium" | "low"; text: string }[] = [];
+		if (_budgetData.overrun > 0 && overrunPct > 5) risks.push({ level: overrunPct > 20 ? "high" : "medium", text: `Budgetüberschreitung von ${fmtCurrency(_budgetData.overrun)} (${overrunPct}%) prognostiziert.` });
+		if (overloadedEmps.length > 0) risks.push({ level: "high", text: `${overloadedEmps.length} Mitarbeitende überlastet: ${overloadedEmps.map((e: any) => e.name).slice(0, 3).join(", ")}${overloadedEmps.length > 3 ? ` +${overloadedEmps.length - 3} weitere` : ""}.` });
+		if (overBudgetCount > 0) risks.push({ level: "high", text: `${overBudgetCount} Projekt${overBudgetCount > 1 ? "e" : ""} überschreiten das Budget.` });
+		if (overdueCount > 0) risks.push({ level: overdueCount > 10 ? "high" : "medium", text: `${overdueCount} überfällige Tasks beeinträchtigen den Projektfortschritt.` });
+		if (phasesBehindCount > 0) risks.push({ level: "medium", text: `${phasesBehindCount} Projektphasen liegen hinter dem Zeitplan.` });
+		if (behindCount > 0 && totalProjects > 0 && (behindCount / totalProjects) > 0.4) risks.push({ level: "medium", text: `${Math.round((behindCount / totalProjects) * 100)}% der Projekte sind verzögert.` });
+		if (unassignedCount > 0) risks.push({ level: "low", text: `${unassignedCount} Tasks ohne Zuweisung — Bottleneck-Risiko.` });
+		if (excessiveCount > 0) risks.push({ level: "low", text: `${excessiveCount} Tasks mit ungewöhnlich hohem Stundenaufwand identifiziert.` });
+
+		// ── Recommendations ──────────────────────────────────────────────
+		const recs: string[] = [];
+		if (_budgetData.overrun > 0 && overrunPct > 5) recs.push(`<strong>Scope-Review:</strong> Budgetüberschreitung von ${overrunPct}% analysieren — Leistungsumfang oder Budget anpassen.`);
+		if (overloadedEmps.length > 0) recs.push(`<strong>Kapazitätsrebalancing:</strong> Aufgaben von überlasteten Mitarbeitenden auf Personen mit freier Kapazität umverteilen.`);
+		if (overdueCount > 0) recs.push(`<strong>Überfällige Tasks priorisieren:</strong> ${overdueCount} Tasks benötigen sofortige Aufmerksamkeit durch Projektverantwortliche.`);
+		if (phasesBehindCount > 0) recs.push(`<strong>Phasen-Standup:</strong> ${phasesBehindCount} Phasen hinter Zeitplan — Impediments identifizieren und eskalieren.`);
+		if (unassignedCount > 5) recs.push(`<strong>Task-Zuweisung beschleunigen:</strong> ${unassignedCount} offene Tasks ohne Verantwortliche verlangsamen den Fortschritt.`);
+		if (topEmpHours.length > 1 && avgHours > 0 && topEmpHours[0].hours > avgHours * 2.5) recs.push(`<strong>Stundenverteilung prüfen:</strong> «${topEmpHours[0].name}» hat ${Math.round((topEmpHours[0].hours / avgHours - 1) * 100)}% mehr Stunden als der Durchschnitt.`);
+		if (completionRate < 30 && _workloadData.totalTasks > 10) recs.push(`<strong>Lieferfortschritt überprüfen:</strong> Nur ${completionRate}% der Tasks erledigt — Sprint-Ziele und Kapazitäten neu evaluieren.`);
+		if (recs.length === 0) recs.push("Keine kritischen Handlungsempfehlungen. Das Portfolio läuft planmässig.");
+
+		// ── Detailed Sections ────────────────────────────────────────────
+		let sectionsHtml = "";
+
+		if (sel.includes("budgetVsActual") || sel.includes("forecastedOverrun")) {
+			const oc = _budgetData.overrun > 0 ? "#dc2626" : "#16a34a";
+			sectionsHtml += `<div class="section"><h2 class="section-title">Budget &amp; Kosten</h2>
+			<div class="kpi-row">
+				<div class="kpi"><div class="kpi-value">${fmtCurrency(_budgetData.totalBudget)}</div><div class="kpi-label">Planbudget</div></div>
+				<div class="kpi"><div class="kpi-value" style="color:#2563eb">${fmtCurrency(_budgetData.totalEstimatedCost)}</div><div class="kpi-label">Geschätzte Kosten</div></div>
+				<div class="kpi"><div class="kpi-value" style="color:#059669">${fmt(_budgetData.totalEstimatedHours)}h</div><div class="kpi-label">Gesamtstunden</div></div>
+				<div class="kpi"><div class="kpi-value" style="color:${oc}">${_budgetData.overrun > 0 ? "+" : ""}${fmtCurrency(_budgetData.overrun)}</div><div class="kpi-label">Differenz</div></div>
+			</div>
+			<p style="font-size:12px;color:#6b7280;margin-top:8px;">Budgetauslastung: <strong style="color:${oc}">${Math.round(budgetUsagePct)}%</strong></p>
+			${bar(budgetUsagePct, _budgetData.overrun > 0 ? "#dc2626" : "#16a34a")}</div>`;
+		}
+
+		if (sel.includes("hoursPerEmployee") && topEmpHours.length > 0) {
+			const maxH = topEmpHours[0].hours;
+			sectionsHtml += `<div class="section"><h2 class="section-title">Stunden pro Mitarbeiter</h2>
+			<table><thead><tr><th>Mitarbeiter</th><th style="text-align:right">Stunden</th><th style="text-align:right">vs. Ø</th><th style="min-width:100px">Anteil</th></tr></thead><tbody>
+			${topEmpHours.slice(0, 15).map((r: any) => {
+				const pct = maxH > 0 ? (r.hours / maxH) * 100 : 0;
+				const vsAvg = avgHours > 0 ? Math.round(((r.hours / avgHours) - 1) * 100) : 0;
+				const isHigh = r.hours > avgHours * 1.5;
+				return `<tr><td>${r.name}${isHigh ? ' <span class="badge badge-warn">Hoch</span>' : ""}</td><td style="text-align:right;font-weight:600">${fmt(r.hours)}h</td><td style="text-align:right;color:${vsAvg > 50 ? "#dc2626" : vsAvg > 20 ? "#ea580c" : "#6b7280"}">${vsAvg > 0 ? "+" : ""}${vsAvg}%</td><td>${bar(pct)}</td></tr>`;
+			}).join("")}
+			</tbody></table>
+			<p class="text-muted" style="margin-top:6px;">Ø ${fmt(avgHours)}h pro Person · ${topEmpHours.length} Mitarbeitende</p></div>`;
+		}
+
+		if (sel.includes("costPerPhase") && topPhases.length > 0) {
+			sectionsHtml += `<div class="section"><h2 class="section-title">Kosten pro Phase</h2>
+			<table><thead><tr><th>Phase</th><th style="text-align:right">Kosten</th><th style="text-align:right">Stunden</th><th style="text-align:right">Anteil</th><th style="min-width:100px"></th></tr></thead><tbody>
+			${topPhases.map((r: any) => {
+				const pct = totalCostPhases > 0 ? Math.round((r.cost / totalCostPhases) * 100) : 0;
+				return `<tr><td><strong>${r.phase}</strong></td><td style="text-align:right;font-weight:600">${fmtCurrency(r.cost)}</td><td style="text-align:right">${fmt(r.hours)}h</td><td style="text-align:right">${pct}%</td><td>${bar(pct, "#6366f1")}</td></tr>`;
+			}).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("hoursAssigned") || sel.includes("overloadDetection") || sel.includes("capacityPlanning")) {
+			const sortedWl = [..._workloadData.employeeWorkload].sort((a: any, b: any) => {
+				const uB = b.monthlyCapacity > 0 ? b.assigned / b.monthlyCapacity : 0;
+				const uA = a.monthlyCapacity > 0 ? a.assigned / a.monthlyCapacity : 0;
+				return uB - uA;
+			});
+			sectionsHtml += `<div class="section"><h2 class="section-title">Mitarbeiter-Auslastung</h2>
+			<div class="kpi-row">
+				<div class="kpi"><div class="kpi-value" style="color:#2563eb">${totalEmps}</div><div class="kpi-label">Mitarbeitende</div></div>
+				<div class="kpi"><div class="kpi-value" style="color:${overloadedEmps.length > 0 ? "#dc2626" : "#16a34a"}">${overloadedEmps.length}</div><div class="kpi-label">Überlastet</div></div>
+				<div class="kpi"><div class="kpi-value">${avgUtilization}%</div><div class="kpi-label">Ø Auslastung</div></div>
+			</div>
+			<table style="margin-top:12px;"><thead><tr><th>Mitarbeiter</th><th style="text-align:right">Zugewiesen</th><th style="text-align:right">Kapazität</th><th style="text-align:right">Auslastung</th><th style="min-width:90px"></th></tr></thead><tbody>
+			${sortedWl.map((r: any) => {
+				const util = r.monthlyCapacity > 0 ? Math.round((r.assigned / r.monthlyCapacity) * 100) : 0;
+				const c = util > 100 ? "#dc2626" : util > 80 ? "#ea580c" : "#16a34a";
+				return `<tr><td>${r.name}${r.overloaded ? ' <span class="badge badge-danger">Überlastet</span>' : ""}</td><td style="text-align:right">${fmt(r.assigned)}h</td><td style="text-align:right">${fmt(r.monthlyCapacity)}h</td><td style="text-align:right;font-weight:700;color:${c}">${util}%</td><td>${bar(util, c)}</td></tr>`;
+			}).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("taskDistribution") && _workloadData.totalTasks > 0) {
+			sectionsHtml += `<div class="section"><h2 class="section-title">Task-Verteilung</h2>
+			<div class="kpi-row">
+			${_workloadData.taskDistribution.map((r: any) => {
+				const pct = _workloadData.totalTasks > 0 ? Math.round((r.count / _workloadData.totalTasks) * 100) : 0;
+				return `<div class="kpi"><div class="kpi-value">${r.count}</div><div class="kpi-label">${r.status} · ${pct}%</div></div>`;
+			}).join("")}
+			</div>
+			<p style="font-size:12px;color:#6b7280;margin-top:8px;">Abschlussrate: <strong>${completionRate}%</strong> — ${doneTasks} von ${_workloadData.totalTasks} Tasks erledigt</p>
+			${bar(completionRate, "#16a34a")}</div>`;
+		}
+
+		if (sel.includes("upcomingDeadlines") && _workloadData.upcomingDeadlines.length > 0) {
+			const sortedDl = [..._workloadData.upcomingDeadlines].sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+			sectionsHtml += `<div class="section"><h2 class="section-title">Bevorstehende Deadlines (${_workloadData.upcomingDeadlines.length})</h2>
+			<table><thead><tr><th>Task</th><th>Projekt</th><th>Verantwortlich</th><th>Fällig am</th></tr></thead><tbody>
+			${sortedDl.slice(0, 15).map((t: any) => {
+				const due = new Date(t.dueDate);
+				const days = Math.ceil((due.getTime() - Date.now()) / 86400000);
+				const urgent = days <= 7;
+				return `<tr><td>${t.title}${urgent ? ' <span class="badge badge-warn">Dringend</span>' : ""}</td><td>${t.projectTitle}</td><td>${t.assignedTo || "—"}</td><td style="font-weight:${urgent ? 700 : 400};color:${urgent ? "#dc2626" : "inherit"}">${due.toLocaleDateString("de-CH")}</td></tr>`;
+			}).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("milestonesAchieved") || sel.includes("deliverables")) {
+			const sortedMs = [..._milestoneData].sort((a: any, b: any) => b.progress - a.progress);
+			sectionsHtml += `<div class="section"><h2 class="section-title">Projektmeilensteine &amp; Liefergegenstände</h2>
+			<table><thead><tr><th>Projekt</th><th>Auftraggeber</th><th style="text-align:right">Fortschritt</th><th style="text-align:right">Tasks</th><th style="text-align:right">Phasen</th><th>Nächste Phase</th></tr></thead><tbody>
+			${sortedMs.map((r: any) => {
+				const c = r.progress >= 80 ? "#16a34a" : r.progress >= 50 ? "#2563eb" : "#ea580c";
+				return `<tr><td><strong>${r.projectTitle}</strong></td><td>${r.customerName}</td><td style="text-align:right;font-weight:700;color:${c}">${r.progress}%</td><td style="text-align:right">${r.doneTasks}/${r.totalTasks}</td><td style="text-align:right">${r.completedPhases}/${r.totalPhases}</td><td style="font-size:11px;color:#6b7280">${r.nextPhase}${r.nextPhaseDue ? " · " + r.nextPhaseDue : ""}</td></tr>`;
+			}).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("overdueTasks") && overdueCount > 0) {
+			sectionsHtml += `<div class="section"><h2 class="section-title" style="color:#dc2626">Überfällige Tasks (${overdueCount})</h2>
+			<table><thead><tr><th>Task</th><th>Projekt</th><th>Zugewiesen</th></tr></thead><tbody>
+			${delayRiskData.overdueTasks.slice(0, 20).map((t: any) => `<tr><td>${t.title}</td><td>${t.projectTitle}</td><td>${t.assignedTo || "—"}</td></tr>`).join("")}
+			</tbody></table>${overdueCount > 20 ? `<p class="text-muted">+ ${overdueCount - 20} weitere</p>` : ""}</div>`;
+		}
+
+		if (sel.includes("unassignedTasks") && unassignedCount > 0) {
+			sectionsHtml += `<div class="section"><h2 class="section-title" style="color:#ea580c">Nicht zugewiesene Tasks (${unassignedCount})</h2>
+			<table><thead><tr><th>Task</th><th>Projekt</th></tr></thead><tbody>
+			${delayRiskData.unassignedTasks.slice(0, 15).map((t: any) => `<tr><td>${t.title}</td><td>${t.projectTitle}</td></tr>`).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("excessiveHours") && excessiveCount > 0) {
+			const sortedEx = [...delayRiskData.excessiveHoursTasks].sort((a: any, b: any) => b.estimatedHours - a.estimatedHours);
+			const avgEx = sortedEx.reduce((s: number, t: any) => s + t.estimatedHours, 0) / sortedEx.length;
+			sectionsHtml += `<div class="section"><h2 class="section-title">Tasks mit erhöhtem Stundenaufwand (${excessiveCount})</h2>
+			<table><thead><tr><th>Task</th><th>Projekt</th><th style="text-align:right">Geschätzte Std.</th></tr></thead><tbody>
+			${sortedEx.slice(0, 15).map((t: any) => `<tr><td>${t.title}</td><td>${t.projectTitle}</td><td style="text-align:right;font-weight:600">${t.estimatedHours}h</td></tr>`).join("")}
+			</tbody></table><p class="text-muted" style="margin-top:6px;">Ø ${fmt(avgEx)}h pro Task</p></div>`;
+		}
+
+		if (sel.includes("phasesBehind") && phasesBehindCount > 0) {
+			sectionsHtml += `<div class="section"><h2 class="section-title">Phasen hinter Zeitplan (${phasesBehindCount})</h2>
+			<table><thead><tr><th>Projekt</th><th>Phase</th><th>Geplantes Ende</th></tr></thead><tbody>
+			${delayRiskData.phasesBehind.slice(0, 15).map((p: any) => `<tr><td>${p.projectTitle}</td><td>${p.phaseName}</td><td>${p.dueDate ? new Date(p.dueDate).toLocaleDateString("de-CH") : "—"}</td></tr>`).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("projectOverview") && totalProjects > 0) {
+			const sortedPo = [..._projectStatusData].sort((a: any, b: any) => ({ overBudget: 0, behind: 1, onTrack: 2 } as any)[a.health] - ({ overBudget: 0, behind: 1, onTrack: 2 } as any)[b.health]);
+			sectionsHtml += `<div class="section"><h2 class="section-title">Projektübersicht</h2>
+			<div class="kpi-row">
+				<div class="kpi"><div class="kpi-value" style="color:#2563eb">${totalProjects}</div><div class="kpi-label">Projekte total</div></div>
+				<div class="kpi"><div class="kpi-value" style="color:#16a34a">${onTrackCount}</div><div class="kpi-label">Im Zeitplan</div></div>
+				<div class="kpi"><div class="kpi-value" style="color:#ea580c">${behindCount}</div><div class="kpi-label">Verzögert</div></div>
+				<div class="kpi"><div class="kpi-value" style="color:#dc2626">${overBudgetCount}</div><div class="kpi-label">Über Budget</div></div>
+			</div>
+			<table style="margin-top:14px;"><thead><tr><th>Projekt</th><th>Auftraggeber</th><th>Status</th><th style="text-align:right">Fortschritt</th><th>Projektstatus</th></tr></thead><tbody>
+			${sortedPo.map((p: any) => {
+				const hc = healthColor(p.health);
+				const hl = p.health === "overBudget" ? "Über Budget" : p.health === "behind" ? "Verzögert" : "Im Zeitplan";
+				return `<tr><td><strong>${p.title}</strong><br><span style="font-size:11px;color:#9ca3af">${p.projectManager}</span></td><td>${p.customerName}</td><td>${p.status}</td><td style="text-align:right;font-weight:600">${p.progress}%</td><td><span style="display:inline-block;padding:2px 10px;border-radius:9999px;font-size:11px;font-weight:600;background:${hc}22;color:${hc}">${hl}</span></td></tr>`;
+			}).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("projectProgress") && totalProjects > 0) {
+			const sortedPp = [..._projectStatusData].sort((a: any, b: any) => a.progress - b.progress);
+			sectionsHtml += `<div class="section"><h2 class="section-title">Projektfortschritt</h2>
+			<table><thead><tr><th>Projekt</th><th style="text-align:right">Tasks</th><th style="text-align:right">Überfällig</th><th style="text-align:right">Fortschritt</th><th style="min-width:90px"></th></tr></thead><tbody>
+			${sortedPp.map((p: any) => {
+				const c = p.progress >= 75 ? "#16a34a" : p.progress >= 40 ? "#2563eb" : "#ea580c";
+				return `<tr><td><strong>${p.title}</strong></td><td style="text-align:right">${p.doneTasks}/${p.totalTasks}</td><td style="text-align:right;color:${p.overdueTasks > 0 ? "#dc2626" : "inherit"};font-weight:${p.overdueTasks > 0 ? 600 : 400}">${p.overdueTasks}</td><td style="text-align:right;font-weight:700;color:${c}">${p.progress}%</td><td>${bar(p.progress, c)}</td></tr>`;
+			}).join("")}
+			</tbody></table></div>`;
+		}
+
+		if (sel.includes("projectBudgetUsage") && totalProjects > 0) {
+			const sortedBu = [..._projectStatusData].sort((a: any, b: any) => b.budgetUsage - a.budgetUsage);
+			sectionsHtml += `<div class="section"><h2 class="section-title">Budgetnutzung pro Projekt</h2>
+			<table><thead><tr><th>Projekt</th><th style="text-align:right">Geschätzte Kosten</th><th style="text-align:right">Budget</th><th style="text-align:right">Nutzung</th><th style="min-width:90px"></th></tr></thead><tbody>
+			${sortedBu.map((p: any) => {
+				const c = p.budgetUsage > 100 ? "#dc2626" : p.budgetUsage > 80 ? "#ea580c" : "#16a34a";
+				return `<tr><td><strong>${p.title}</strong></td><td style="text-align:right">${fmtCurrency(p.estimatedCost)}</td><td style="text-align:right">${fmtCurrency(p.budget)}</td><td style="text-align:right;font-weight:700;color:${c}">${p.budgetUsage}%</td><td>${bar(p.budgetUsage, c)}</td></tr>`;
+			}).join("")}
+			</tbody></table></div>`;
+		}
+
+		// ── Risk & Recommendations HTML ──────────────────────────────────
+		const riskHtml = risks.length > 0
+			? risks.map((r) => {
+				const lc = { high: "#dc2626", medium: "#ea580c", low: "#ca8a04" }[r.level];
+				const lb = { high: "#fef2f2", medium: "#fff7ed", low: "#fefce8" }[r.level];
+				const ll = { high: "🔴 Kritisch", medium: "🟠 Warnung", low: "🟡 Hinweis" }[r.level];
+				return `<div style="padding:10px 14px;margin-bottom:8px;border-radius:10px;border-left:4px solid ${lc};background:${lb};font-size:13px;"><span style="font-weight:700;color:${lc}">${ll}</span> &nbsp;${r.text}</div>`;
+			}).join("")
+			: `<p class="text-muted">Keine kritischen Risiken identifiziert.</p>`;
+
+		const recsHtml = recs.map((r, i) =>
+			`<div style="padding:10px 14px;margin-bottom:8px;border-radius:10px;background:#f0f9ff;border-left:4px solid #3b82f6;font-size:13px;"><span style="font-weight:700;color:#2563eb">${i + 1}.</span> ${r}</div>`
+		).join("");
+
+		return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>${reportTitle} — OnTrack</title><style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; padding:40px 48px; color:#111827; font-size:13px; line-height:1.6; background:#fff; }
+.report-header { border-bottom:3px solid #1e40af; padding-bottom:20px; margin-bottom:32px; }
+.report-title { font-size:26px; font-weight:800; color:#1e3a8a; letter-spacing:-0.5px; }
+.report-meta { font-size:12px; color:#6b7280; margin-top:6px; }
+.report-meta span { margin-right:16px; }
+.section { margin-bottom:32px; page-break-inside:avoid; }
+.section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#6b7280; border-bottom:2px solid #e5e7eb; padding-bottom:7px; margin-bottom:12px; }
+.exec-box { background:#f8faff; border:1px solid #dbeafe; border-radius:12px; padding:16px 20px; }
+.exec-box ul { margin:0; padding-left:18px; }
+.exec-box li { margin-bottom:6px; color:#374151; }
+table { width:100%; border-collapse:collapse; margin-top:6px; font-size:13px; }
+thead th { background:#f9fafb; font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280; padding:8px 12px; border-bottom:2px solid #e5e7eb; text-align:left; }
+tbody td { padding:8px 12px; border-bottom:1px solid #f3f4f6; }
+tbody tr:hover td { background:#f9fafb; }
+.kpi-row { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
+.kpi { border:1px solid #e5e7eb; border-radius:12px; padding:14px 20px; text-align:center; min-width:120px; background:#fafafa; }
+.kpi-value { font-size:22px; font-weight:800; color:#111827; }
+.kpi-label { font-size:11px; color:#6b7280; margin-top:3px; }
+.badge { display:inline-block; padding:1px 8px; border-radius:9999px; font-size:10px; font-weight:600; margin-left:4px; }
+.badge-warn { background:#fef3c7; color:#92400e; }
+.badge-danger { background:#fee2e2; color:#991b1b; }
+.text-muted { color:#9ca3af; font-style:italic; font-size:12px; }
+.footer { margin-top:40px; padding-top:14px; border-top:2px solid #e5e7eb; font-size:11px; color:#9ca3af; display:flex; justify-content:space-between; }
+@media print { body { padding:16px 20px; } .section { break-inside:avoid; } .section-title { page-break-after:avoid; } }
 </style></head><body>
-<h1>${reportTitle}</h1>
-<div class="subtitle">Generated ${date} ${time} · OnTrack</div>
-${sections}
-<div class="footer"><span>OnTrack Report</span><span>${date} ${time}</span></div>
+<div class="report-header">
+	<div class="report-title">${reportTitle}</div>
+	<div class="report-meta"><span>📅 ${dateFormatted}</span><span>🕐 ${time} Uhr</span><span>📊 OnTrack Portfolio-Bericht</span><span>📦 ${sel.length} Datensätze</span></div>
+</div>
+<div class="section">
+	<div class="section-title">Executive Summary</div>
+	<div class="exec-box"><ul>${execPoints.map((p) => `<li>${p}</li>`).join("")}</ul></div>
+</div>
+${sectionsHtml}
+${risks.length > 0 ? `<div class="section"><div class="section-title">Risiken &amp; Auffälligkeiten</div>${riskHtml}</div>` : ""}
+<div class="section"><div class="section-title">Empfehlungen</div>${recsHtml}</div>
+<div class="footer"><span>OnTrack — Vertraulich · Für interne Zwecke</span><span>Erstellt ${date} ${time}</span></div>
 </body></html>`;
 	}
 
@@ -423,10 +579,29 @@ ${sections}
 
 	function previewBuilderReport() {
 		const html = generateBuilderReportHtml();
-		// Extract just the body content for inline preview
 		const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
 		printPreviewHtml = bodyMatch ? bodyMatch[1] : html;
 		showPrintPreview = true;
+	}
+
+	function openPrintPreview() {
+		if (currentView === "builder") {
+			previewBuilderReport();
+		} else {
+			printCurrentReport();
+		}
+	}
+
+	function printProjectStateReport(project: any) {
+		const hourlyRates = loadHourlyRates();
+		const html = buildProjectStateReportHtml(project, hourlyRates, "", "de");
+		const w = window.open("", "_blank", "width=1000,height=900");
+		if (!w) return;
+		w.document.open();
+		w.document.write(html);
+		w.document.close();
+		w.focus();
+		w.print();
 	}
 
 	// ── Icon Definitions ─────────────────────────────────────────────────
@@ -743,19 +918,19 @@ ${sections}
 			<section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 					<p class="text-sm font-medium text-gray-500">{$t.reports.total} Budget</p>
-					<p class="mt-2 text-3xl font-bold text-gray-900">{fmtCurrency(budgetData.totalBudget)}</p>
+					<p class="mt-2 text-3xl font-bold text-gray-900">{fmtCurrency($budgetData.totalBudget)}</p>
 				</article>
 				<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 					<p class="text-sm font-medium text-gray-500">{$t.reports.total} {$t.common.cost}</p>
-					<p class="mt-2 text-3xl font-bold text-blue-700">{fmtCurrency(budgetData.totalEstimatedCost)}</p>
+					<p class="mt-2 text-3xl font-bold text-blue-700">{fmtCurrency($budgetData.totalEstimatedCost)}</p>
 				</article>
 				<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 					<p class="text-sm font-medium text-gray-500">{$t.reports.total} {$t.common.hours}</p>
-					<p class="mt-2 text-3xl font-bold text-green-700">{fmt(budgetData.totalEstimatedHours)}h</p>
+					<p class="mt-2 text-3xl font-bold text-green-700">{fmt($budgetData.totalEstimatedHours)}h</p>
 				</article>
 				<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 					<p class="text-sm font-medium text-gray-500">{$t.reports.forecastedOverrun}</p>
-					<p class="mt-2 text-3xl font-bold {budgetData.overrun > 0 ? 'text-red-600' : 'text-green-700'}">{fmtCurrency(budgetData.overrun)}</p>
+					<p class="mt-2 text-3xl font-bold {$budgetData.overrun > 0 ? 'text-red-600' : 'text-green-700'}">{fmtCurrency($budgetData.overrun)}</p>
 				</article>
 			</section>
 
@@ -764,8 +939,8 @@ ${sections}
 				<article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
 					<h3 class="text-lg font-semibold text-gray-900">{$t.reports.hoursPerEmployee}</h3>
 					<div class="mt-4 max-h-80 space-y-2 overflow-y-auto">
-						{#each budgetData.hoursPerEmployee as row (row.name)}
-							{@const pct = budgetData.totalEstimatedHours > 0 ? (row.hours / budgetData.totalEstimatedHours) * 100 : 0}
+						{#each $budgetData.hoursPerEmployee as row (row.name)}
+							{@const pct = $budgetData.totalEstimatedHours > 0 ? (row.hours / $budgetData.totalEstimatedHours) * 100 : 0}
 							<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
 								<div class="flex items-center justify-between">
 									<p class="text-sm font-medium text-gray-900">{row.name}</p>
@@ -783,7 +958,7 @@ ${sections}
 				<article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
 					<h3 class="text-lg font-semibold text-gray-900">{$t.reports.costPerPhase}</h3>
 					<div class="mt-4 space-y-3">
-						{#each budgetData.costPerPhase as row (row.phase)}
+						{#each $budgetData.costPerPhase as row (row.phase)}
 							<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
 								<div class="flex items-center justify-between">
 									<p class="text-sm font-medium text-gray-900">{row.phase}</p>
@@ -806,15 +981,15 @@ ${sections}
 			<section class="grid gap-4 md:grid-cols-3">
 				<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 					<p class="text-sm font-medium text-gray-500">{$t.reports.total} {$t.nav.tasks}</p>
-					<p class="mt-2 text-4xl font-bold text-gray-900">{workloadData.totalTasks}</p>
+					<p class="mt-2 text-4xl font-bold text-gray-900">{$workloadData.totalTasks}</p>
 				</article>
 				<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 					<p class="text-sm font-medium text-gray-500">{$t.reports.overloadDetection}</p>
-					<p class="mt-2 text-4xl font-bold text-red-600">{workloadData.employeeWorkload.filter((e) => e.overloaded).length}</p>
+					<p class="mt-2 text-4xl font-bold text-red-600">{$workloadData.employeeWorkload.filter((e) => e.overloaded).length}</p>
 				</article>
 				<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 					<p class="text-sm font-medium text-gray-500">{$t.reports.upcomingDeadlines}</p>
-					<p class="mt-2 text-4xl font-bold text-orange-600">{workloadData.upcomingDeadlines.length}</p>
+					<p class="mt-2 text-4xl font-bold text-orange-600">{$workloadData.upcomingDeadlines.length}</p>
 				</article>
 			</section>
 
@@ -823,13 +998,13 @@ ${sections}
 				<article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
 					<h3 class="text-lg font-semibold text-gray-900">{$t.reports.hoursAssigned}</h3>
 					<div class="mt-4 max-h-96 space-y-2 overflow-y-auto">
-						{#each workloadData.employeeWorkload as row (row.name)}
+						{#each $workloadData.employeeWorkload as row (row.name)}
 							{@const utilization = row.monthlyCapacity > 0 ? Math.round((row.assigned / row.monthlyCapacity) * 100) : 0}
 							<div class="rounded-xl border px-4 py-3 {row.overloaded ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}">
 								<div class="flex items-center justify-between">
 									<div>
 										<p class="text-sm font-medium text-gray-900">{row.name}</p>
-										<p class="text-xs text-gray-500">{row.tasks} tasks · {row.overdue} overdue · {row.employmentPercent}% · {row.weeklyCapacity}h/{$t.reports.week}</p>
+										<p class="text-xs text-gray-500">{row.employmentPercent}% · {row.weeklyCapacity}h/{$t.reports.week}</p>
 									</div>
 									<div class="text-right">
 										<p class="text-sm font-semibold {row.overloaded ? 'text-red-600' : 'text-gray-700'}">{fmt(row.assigned)}h / {fmt(row.monthlyCapacity)}h</p>
@@ -849,7 +1024,7 @@ ${sections}
 					<article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
 						<h3 class="text-lg font-semibold text-gray-900">{$t.reports.taskDistribution}</h3>
 						<div class="mt-4 grid grid-cols-2 gap-3">
-							{#each workloadData.taskDistribution as row (row.status)}
+							{#each $workloadData.taskDistribution as row (row.status)}
 								<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-center">
 									<p class="text-2xl font-bold text-gray-900">{row.count}</p>
 									<span class="mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusColor(row.status)}">{row.status}</span>
@@ -861,13 +1036,13 @@ ${sections}
 					<article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
 						<h3 class="text-lg font-semibold text-gray-900">{$t.reports.upcomingDeadlines}</h3>
 						<div class="mt-4 max-h-52 space-y-2 overflow-y-auto">
-							{#each workloadData.upcomingDeadlines as task (task.taskID)}
+							{#each $workloadData.upcomingDeadlines as task (task.taskID)}
 								<div class="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2">
 									<p class="text-sm font-medium text-gray-900">{task.title}</p>
 									<p class="text-xs text-gray-500">{task.projectTitle} · {task.assignedTo} · {new Date(task.dueDate!).toLocaleDateString("de-CH")}</p>
 								</div>
 							{/each}
-							{#if workloadData.upcomingDeadlines.length === 0}
+							{#if $workloadData.upcomingDeadlines.length === 0}
 								<p class="text-sm text-gray-400">—</p>
 							{/if}
 						</div>
@@ -881,7 +1056,7 @@ ${sections}
 		{:else if currentView === "milestone"}
 			<div id="report-printable" class="space-y-6">
 			<section class="space-y-3">
-				{#each milestoneData as row (row.projectTitle)}
+				{#each $milestoneData as row (row.projectTitle)}
 					<article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 						<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 							<div class="min-w-0 flex-1">
@@ -1026,29 +1201,29 @@ ${sections}
 				<!-- KPI Row -->
 				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
 					<div class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm text-center">
-						<p class="text-3xl font-extrabold text-blue-600">{projectStatusData.length}</p>
+						<p class="text-3xl font-extrabold text-blue-600">{$projectStatusData.length}</p>
 						<p class="mt-1 text-sm text-gray-500">{$t.reports.totalProjects}</p>
 					</div>
 					<div class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm text-center">
-						<p class="text-3xl font-extrabold text-green-600">{projectStatusData.filter((p) => p.health === "onTrack").length}</p>
+						<p class="text-3xl font-extrabold text-green-600">{$projectStatusData.filter((p) => p.health === "onTrack").length}</p>
 						<p class="mt-1 text-sm text-gray-500">{$t.projects.onTrack}</p>
 					</div>
 					<div class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm text-center">
-						<p class="text-3xl font-extrabold text-orange-600">{projectStatusData.filter((p) => p.health === "behind").length}</p>
+						<p class="text-3xl font-extrabold text-orange-600">{$projectStatusData.filter((p) => p.health === "behind").length}</p>
 						<p class="mt-1 text-sm text-gray-500">{$t.projects.behind}</p>
 					</div>
 					<div class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm text-center">
-						<p class="text-3xl font-extrabold text-red-600">{projectStatusData.filter((p) => p.health === "overBudget").length}</p>
+						<p class="text-3xl font-extrabold text-red-600">{$projectStatusData.filter((p) => p.health === "overBudget").length}</p>
 						<p class="mt-1 text-sm text-gray-500">{$t.projects.overBudget}</p>
 					</div>
 					<div class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm text-center">
-						<p class="text-3xl font-extrabold text-purple-600">{projectStatusData.length > 0 ? Math.round(projectStatusData.reduce((s, p) => s + p.progress, 0) / projectStatusData.length) : 0}%</p>
+						<p class="text-3xl font-extrabold text-purple-600">{$projectStatusData.length > 0 ? Math.round($projectStatusData.reduce((s, p) => s + p.progress, 0) / $projectStatusData.length) : 0}%</p>
 						<p class="mt-1 text-sm text-gray-500">{$t.reports.avgProgress}</p>
 					</div>
 				</div>
 
 				<!-- Project Cards -->
-				{#each projectStatusData as proj (proj.projectID)}
+				{#each $projectStatusData as proj (proj.projectID)}
 					<article class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
 						<div class="flex items-start justify-between gap-4">
 							<div class="flex items-center gap-3">
@@ -1115,8 +1290,10 @@ ${sections}
 					<div class="mt-4 space-y-2">
 						{#each availableDataSets as ds (ds.id)}
 							{@const inReport = selectedDataSets.includes(ds.id)}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
 								draggable="true"
+								role="listitem"
 								ondragstart={() => handleDragStart(ds.id)}
 								class="flex cursor-grab items-center justify-between rounded-xl border border-gray-200 px-4 py-3 transition {inReport ? 'bg-gray-100 opacity-50' : 'bg-gray-50 hover:border-blue-200'}"
 							>
@@ -1147,6 +1324,7 @@ ${sections}
 							{#each ICONS as icon (icon.id)}
 								<button
 									onclick={() => (selectedIcon = icon.id)}
+									title={icon.id}
 									class="flex h-9 w-9 items-center justify-center rounded-lg border-2 transition {selectedIcon === icon.id ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300'}"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={icon.path} /></svg>
@@ -1156,7 +1334,9 @@ ${sections}
 					</div>
 
 					<!-- Drop zone -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
+						role="list"
 						ondragover={handleDragOver}
 						ondragleave={handleDragLeave}
 						ondrop={handleDrop}
@@ -1214,9 +1394,9 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.budgetVsActual}</h4>
 									<div class="mt-3 grid gap-3 sm:grid-cols-3">
-										<div class="rounded-xl bg-gray-50 p-3 text-center"><p class="text-xs text-gray-500">Budget</p><p class="text-lg font-bold text-gray-900">{fmtCurrency(budgetData.totalBudget)}</p></div>
-										<div class="rounded-xl bg-gray-50 p-3 text-center"><p class="text-xs text-gray-500">{$t.common.cost}</p><p class="text-lg font-bold text-blue-700">{fmtCurrency(budgetData.totalEstimatedCost)}</p></div>
-										<div class="rounded-xl bg-gray-50 p-3 text-center"><p class="text-xs text-gray-500">Diff</p><p class="text-lg font-bold {budgetData.overrun > 0 ? 'text-red-600' : 'text-green-700'}">{fmtCurrency(budgetData.overrun)}</p></div>
+										<div class="rounded-xl bg-gray-50 p-3 text-center"><p class="text-xs text-gray-500">Budget</p><p class="text-lg font-bold text-gray-900">{fmtCurrency($budgetData.totalBudget)}</p></div>
+										<div class="rounded-xl bg-gray-50 p-3 text-center"><p class="text-xs text-gray-500">{$t.common.cost}</p><p class="text-lg font-bold text-blue-700">{fmtCurrency($budgetData.totalEstimatedCost)}</p></div>
+										<div class="rounded-xl bg-gray-50 p-3 text-center"><p class="text-xs text-gray-500">Diff</p><p class="text-lg font-bold {$budgetData.overrun > 0 ? 'text-red-600' : 'text-green-700'}">{fmtCurrency($budgetData.overrun)}</p></div>
 									</div>
 								</div>
 							{/if}
@@ -1224,7 +1404,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.hoursPerEmployee}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each budgetData.hoursPerEmployee.slice(0, 10) as row (row.name)}
+										{#each $budgetData.hoursPerEmployee.slice(0, 10) as row (row.name)}
 											<div class="flex justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"><span>{row.name}</span><span class="font-semibold">{fmt(row.hours)}h</span></div>
 										{/each}
 									</div>
@@ -1234,7 +1414,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.costPerPhase}</h4>
 									<div class="mt-3 space-y-1.5">
-										{#each budgetData.costPerPhase as row (row.phase)}
+										{#each $budgetData.costPerPhase as row (row.phase)}
 											<div class="flex justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"><span>{row.phase}</span><span class="font-semibold">{fmtCurrency(row.cost)}</span></div>
 										{/each}
 									</div>
@@ -1243,14 +1423,14 @@ ${sections}
 							{#if selectedDataSets.includes("forecastedOverrun")}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.forecastedOverrun}</h4>
-									<p class="mt-2 text-3xl font-bold {budgetData.overrun > 0 ? 'text-red-600' : 'text-green-700'}">{fmtCurrency(budgetData.overrun)}</p>
+									<p class="mt-2 text-3xl font-bold {$budgetData.overrun > 0 ? 'text-red-600' : 'text-green-700'}">{fmtCurrency($budgetData.overrun)}</p>
 								</div>
 							{/if}
 							{#if selectedDataSets.includes("hoursAssigned")}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.hoursAssigned}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each workloadData.employeeWorkload.slice(0, 10) as row (row.name)}
+										{#each $workloadData.employeeWorkload.slice(0, 10) as row (row.name)}
 											<div class="flex justify-between rounded-lg px-3 py-2 text-sm {row.overloaded ? 'bg-red-50' : 'bg-gray-50'}"><span>{row.name}</span><span class="font-semibold">{fmt(row.assigned)}h</span></div>
 										{/each}
 									</div>
@@ -1260,10 +1440,10 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-red-700">{$t.reports.overloadDetection}</h4>
 									<div class="mt-3 space-y-1.5">
-										{#each workloadData.employeeWorkload.filter((e) => e.overloaded) as row (row.name)}
+										{#each $workloadData.employeeWorkload.filter((e) => e.overloaded) as row (row.name)}
 											<div class="flex justify-between rounded-lg bg-red-50 px-3 py-2 text-sm"><span>{row.name}</span><span class="font-semibold text-red-600">{fmt(row.assigned)}h / {fmt(row.monthlyCapacity)}h</span></div>
 										{/each}
-										{#if workloadData.employeeWorkload.filter((e) => e.overloaded).length === 0}
+										{#if $workloadData.employeeWorkload.filter((e) => e.overloaded).length === 0}
 											<p class="text-sm text-gray-400">—</p>
 										{/if}
 									</div>
@@ -1273,10 +1453,10 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.upcomingDeadlines}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each workloadData.upcomingDeadlines as task (task.taskID)}
+										{#each $workloadData.upcomingDeadlines as task (task.taskID)}
 											<div class="flex justify-between rounded-lg bg-orange-50 px-3 py-2 text-sm"><span>{task.title}</span><span>{new Date(task.dueDate!).toLocaleDateString("de-CH")}</span></div>
 										{/each}
-										{#if workloadData.upcomingDeadlines.length === 0}
+										{#if $workloadData.upcomingDeadlines.length === 0}
 											<p class="text-sm text-gray-400">—</p>
 										{/if}
 									</div>
@@ -1286,7 +1466,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.taskDistribution}</h4>
 									<div class="mt-3 grid grid-cols-2 gap-2">
-										{#each workloadData.taskDistribution as row (row.status)}
+										{#each $workloadData.taskDistribution as row (row.status)}
 											<div class="rounded-xl bg-gray-50 p-3 text-center"><p class="text-xl font-bold">{row.count}</p><span class="text-xs rounded-full px-2 py-0.5 {getStatusColor(row.status)}">{row.status}</span></div>
 										{/each}
 									</div>
@@ -1296,7 +1476,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.milestonesAchieved}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each milestoneData.slice(0, 10) as row (row.projectTitle)}
+										{#each $milestoneData.slice(0, 10) as row (row.projectTitle)}
 											<div class="flex justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"><span>{row.projectTitle}</span><span class="font-semibold">{row.progress}%</span></div>
 										{/each}
 									</div>
@@ -1306,7 +1486,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-gray-900">{$t.reports.deliverables}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each milestoneData.slice(0, 10) as row (row.projectTitle)}
+										{#each $milestoneData.slice(0, 10) as row (row.projectTitle)}
 											<div class="flex justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm"><span>{row.projectTitle}</span><span>{row.doneTasks}/{row.totalTasks} tasks</span></div>
 										{/each}
 									</div>
@@ -1368,7 +1548,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-blue-700">{$t.reports.capacityPlanning}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each workloadData.employeeWorkload as row (row.name)}
+										{#each $workloadData.employeeWorkload as row (row.name)}
 											{@const util = row.monthlyCapacity > 0 ? Math.round((row.assigned / row.monthlyCapacity) * 100) : 0}
 											<div class="flex items-center justify-between rounded-lg px-3 py-2 text-sm {util > 100 ? 'bg-red-50' : 'bg-gray-50'}">
 												<span>{row.name} ({row.employmentPercent}%)</span>
@@ -1382,7 +1562,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-teal-700">{$t.reports.projectOverview}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each projectStatusData as proj (proj.projectID)}
+										{#each $projectStatusData as proj (proj.projectID)}
 											<div class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
 												<div class="flex items-center gap-2">
 													<div class="h-2.5 w-2.5 rounded-full {proj.health === 'overBudget' ? 'bg-red-500' : proj.health === 'behind' ? 'bg-orange-400' : 'bg-green-500'}"></div>
@@ -1398,7 +1578,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-teal-700">{$t.reports.projectProgress}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each projectStatusData as proj (proj.projectID)}
+										{#each $projectStatusData as proj (proj.projectID)}
 											<div class="rounded-lg bg-gray-50 px-3 py-2 text-sm">
 												<div class="flex items-center justify-between"><span>{proj.title}</span><span class="font-semibold">{proj.progress}%</span></div>
 												<div class="mt-1 h-1.5 rounded-full bg-gray-200"><div class="h-1.5 rounded-full bg-blue-500" style="width:{proj.progress}%"></div></div>
@@ -1411,7 +1591,7 @@ ${sections}
 								<div class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
 									<h4 class="text-base font-semibold text-teal-700">{$t.reports.projectBudgetUsage}</h4>
 									<div class="mt-3 max-h-48 space-y-1.5 overflow-y-auto">
-										{#each projectStatusData as proj (proj.projectID)}
+										{#each $projectStatusData as proj (proj.projectID)}
 											<div class="flex items-center justify-between rounded-lg px-3 py-2 text-sm {proj.budgetUsage > 100 ? 'bg-red-50' : 'bg-gray-50'}">
 												<span>{proj.title}</span>
 												<span class="font-semibold {proj.budgetUsage > 100 ? 'text-red-600' : 'text-gray-700'}">{proj.budgetUsage}% used</span>

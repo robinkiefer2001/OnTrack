@@ -368,32 +368,32 @@
 								</h3>
 								<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 									<div>
-										<label class="text-xs font-semibold uppercase text-gray-500">{$t.admin.firstName}</label>
-										<input type="text" bind:value={userForm.firstName} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
+										<label for="admin-firstName" class="text-xs font-semibold uppercase text-gray-500">{$t.admin.firstName}</label>
+										<input id="admin-firstName" type="text" bind:value={userForm.firstName} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
 									</div>
 									<div>
-										<label class="text-xs font-semibold uppercase text-gray-500">{$t.admin.lastName}</label>
-										<input type="text" bind:value={userForm.lastName} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
+										<label for="admin-lastName" class="text-xs font-semibold uppercase text-gray-500">{$t.admin.lastName}</label>
+										<input id="admin-lastName" type="text" bind:value={userForm.lastName} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
 									</div>
 									<div>
-										<label class="text-xs font-semibold uppercase text-gray-500">{$t.admin.email}</label>
-										<input type="email" bind:value={userForm.email} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
+										<label for="admin-email" class="text-xs font-semibold uppercase text-gray-500">{$t.admin.email}</label>
+										<input id="admin-email" type="email" bind:value={userForm.email} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
 									</div>
 									<div>
-										<label class="text-xs font-semibold uppercase text-gray-500">{$t.admin.phone}</label>
-										<input type="tel" bind:value={userForm.phone} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
+										<label for="admin-phone" class="text-xs font-semibold uppercase text-gray-500">{$t.admin.phone}</label>
+										<input id="admin-phone" type="tel" bind:value={userForm.phone} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
 									</div>
 									<div>
-										<label class="text-xs font-semibold uppercase text-gray-500">{$t.admin.department}</label>
-										<input type="text" bind:value={userForm.department} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
+										<label for="admin-department" class="text-xs font-semibold uppercase text-gray-500">{$t.admin.department}</label>
+										<input id="admin-department" type="text" bind:value={userForm.department} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
 									</div>
 									<div>
-										<label class="text-xs font-semibold uppercase text-gray-500">{$t.admin.jobTitle}</label>
-										<input type="text" bind:value={userForm.jobTitle} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
+										<label for="admin-jobTitle" class="text-xs font-semibold uppercase text-gray-500">{$t.admin.jobTitle}</label>
+										<input id="admin-jobTitle" type="text" bind:value={userForm.jobTitle} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300" />
 									</div>
 									<div>
-										<label class="text-xs font-semibold uppercase text-gray-500">{$t.admin.role}</label>
-										<select bind:value={userForm.role} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300">
+										<label for="admin-role" class="text-xs font-semibold uppercase text-gray-500">{$t.admin.role}</label>
+										<select id="admin-role" bind:value={userForm.role} class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300">
 											{#each ROLE_NAMES as rn}
 												<option value={rn}>{getRoleLabel(rn)}</option>
 											{/each}
@@ -575,8 +575,9 @@
 
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 								<div>
-									<label class="text-xs font-semibold uppercase text-gray-500">{$t.settings.rateType}</label>
+									<label for="admin-rateType" class="text-xs font-semibold uppercase text-gray-500">{$t.settings.rateType}</label>
 									<input
+										id="admin-rateType"
 										type="text"
 										class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300"
 										bind:value={newRateType}
@@ -585,8 +586,9 @@
 								</div>
 
 								<div>
-									<label class="text-xs font-semibold uppercase text-gray-500">{$t.settings.ratePerHour}</label>
+									<label for="admin-ratePerHour" class="text-xs font-semibold uppercase text-gray-500">{$t.settings.ratePerHour}</label>
 									<input
+										id="admin-ratePerHour"
 										type="number"
 										class="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-300"
 										bind:value={newRateAmount}

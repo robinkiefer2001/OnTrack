@@ -57,7 +57,7 @@
 </script>
 
 <div class="w-full rounded-3xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-  <div class="overflow-x-auto max-h-[640px] overflow-y-auto">
+  <div class="overflow-x-auto max-h-160 overflow-y-auto">
     <table class="w-full text-sm">
       <thead>
         <tr class="sticky top-0 bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">

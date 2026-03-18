@@ -115,8 +115,9 @@
             <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <!-- First Name (read-only) -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">{$t.profile.firstName}</label>
+                    <label for="profile-firstName" class="text-sm font-medium text-gray-700">{$t.profile.firstName}</label>
                     <input
+                        id="profile-firstName"
                         type="text"
                         value={$currentUser.firstName}
                         disabled
@@ -127,8 +128,9 @@
 
                 <!-- Last Name (read-only) -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">{$t.profile.lastName}</label>
+                    <label for="profile-lastName" class="text-sm font-medium text-gray-700">{$t.profile.lastName}</label>
                     <input
+                        id="profile-lastName"
                         type="text"
                         value={$currentUser.lastName}
                         disabled
@@ -139,8 +141,9 @@
 
                 <!-- Email (editable) -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">{$t.profile.email}</label>
+                    <label for="profile-email" class="text-sm font-medium text-gray-700">{$t.profile.email}</label>
                     <input
+                        id="profile-email"
                         type="email"
                         bind:value={email}
                         class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
@@ -149,8 +152,9 @@
 
                 <!-- Phone (editable) -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">{$t.profile.phone}</label>
+                    <label for="profile-phone" class="text-sm font-medium text-gray-700">{$t.profile.phone}</label>
                     <input
+                        id="profile-phone"
                         type="tel"
                         bind:value={phone}
                         class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
@@ -159,8 +163,9 @@
 
                 <!-- Job Title (read-only) -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">{$t.profile.jobTitle}</label>
+                    <label for="profile-jobTitle" class="text-sm font-medium text-gray-700">{$t.profile.jobTitle}</label>
                     <input
+                        id="profile-jobTitle"
                         type="text"
                         value={$currentUser.jobTitle}
                         disabled
@@ -171,8 +176,9 @@
 
                 <!-- Department (read-only) -->
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-sm font-medium text-gray-700">{$t.profile.department}</label>
+                    <label for="profile-department" class="text-sm font-medium text-gray-700">{$t.profile.department}</label>
                     <input
+                        id="profile-department"
                         type="text"
                         value={$currentUser.department}
                         disabled
@@ -183,8 +189,9 @@
 
                 <!-- Bio (editable, full width) -->
                 <div class="flex flex-col gap-1.5 md:col-span-2">
-                    <label class="text-sm font-medium text-gray-700">{$t.profile.bio}</label>
+                    <label for="profile-bio" class="text-sm font-medium text-gray-700">{$t.profile.bio}</label>
                     <textarea
+                        id="profile-bio"
                         bind:value={bio}
                         rows="3"
                         placeholder={$t.profile.bioPlaceholder}
@@ -217,24 +224,27 @@
 
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">{$t.profile.currentPassword}</label>
+                        <label for="profile-currentPassword" class="text-sm font-medium text-gray-700">{$t.profile.currentPassword}</label>
                         <input
+                            id="profile-currentPassword"
                             type="password"
                             bind:value={currentPassword}
                             class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                         />
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">{$t.profile.newPassword}</label>
+                        <label for="profile-newPassword" class="text-sm font-medium text-gray-700">{$t.profile.newPassword}</label>
                         <input
+                            id="profile-newPassword"
                             type="password"
                             bind:value={newPassword}
                             class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                         />
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-sm font-medium text-gray-700">{$t.profile.confirmPassword}</label>
+                        <label for="profile-confirmPassword" class="text-sm font-medium text-gray-700">{$t.profile.confirmPassword}</label>
                         <input
+                            id="profile-confirmPassword"
                             type="password"
                             bind:value={confirmPassword}
                             class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
@@ -294,9 +304,10 @@
                         </div>
 
                         <div class="mt-4 flex flex-col gap-1.5">
-                            <label class="text-sm font-medium text-blue-900">{$t.profile.mfaVerifyCode}</label>
+                            <label for="profile-mfaCode" class="text-sm font-medium text-blue-900">{$t.profile.mfaVerifyCode}</label>
                             <div class="flex gap-3">
                                 <input
+                                    id="profile-mfaCode"
                                     type="text"
                                     bind:value={mfaCode}
                                     maxlength="6"
