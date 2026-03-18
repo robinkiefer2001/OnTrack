@@ -464,41 +464,41 @@
   }
 </script>
 
-<div class="card bg-base-100 shadow-md p-4">
+<div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
   <!-- View Switcher -->
-  <div class="flex justify-between items-center mb-4">
-    <div class="tabs tabs-boxed bg-gray-100">
+  <div class="mb-4 flex items-center justify-between">
+    <div class="flex gap-1 rounded-lg bg-gray-100 p-1">
       <button 
-        class="tab {viewMode === 'phases' ? 'tab-active' : ''}" 
+        class="rounded-md px-3 py-1.5 text-sm font-medium transition {viewMode === 'phases' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}" 
         on:click={() => switchView('phases')}
       >
         Phases
       </button>
       <button 
-        class="tab {viewMode === 'tasks' ? 'tab-active' : ''}" 
+        class="rounded-md px-3 py-1.5 text-sm font-medium transition {viewMode === 'tasks' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}" 
         on:click={() => switchView('tasks')}
       >
         Tasks
       </button>
     </div>
 
-    <div class="flex gap-4 items-center">
+    <div class="flex items-center gap-4">
       <!-- Time Unit Switcher -->
-      <div class="join">
+      <div class="flex gap-1 rounded-lg bg-gray-100 p-1">
         <button 
-          class="join-item btn btn-sm {timeUnit === 'day' ? 'btn-active' : 'btn-ghost'}"
+          class="rounded-md px-3 py-1.5 text-sm font-medium transition {timeUnit === 'day' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
           on:click={() => switchTimeUnit('day')}
         >
           Tage
         </button>
         <button 
-          class="join-item btn btn-sm {timeUnit === 'week' ? 'btn-active' : 'btn-ghost'}"
+          class="rounded-md px-3 py-1.5 text-sm font-medium transition {timeUnit === 'week' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
           on:click={() => switchTimeUnit('week')}
         >
           Wochen
         </button>
         <button 
-          class="join-item btn btn-sm {timeUnit === 'month' ? 'btn-active' : 'btn-ghost'}"
+          class="rounded-md px-3 py-1.5 text-sm font-medium transition {timeUnit === 'month' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
           on:click={() => switchTimeUnit('month')}
         >
           Monate

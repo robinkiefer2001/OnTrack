@@ -36,7 +36,7 @@
     <div class="flex items-center gap-2">
       {#if task.subtasks && task.subtasks.length > 0}
         <button
-          class="btn btn-xs btn-ghost"
+          class="rounded-md p-1 text-gray-500 transition hover:bg-gray-100"
           on:click={() => (isExpanded = !isExpanded)}
           title={isExpanded ? $t.common.collapse : $t.common.expand}
         >
@@ -59,17 +59,14 @@
   <td class="py-3 px-4 text-gray-600">{task.assignedTo || "-"}</td>
   <td class="py-3 px-4">
     <span
-      class="badge h-auto min-h-8 px-3 py-1 whitespace-nowrap"
-      class:badge-neutral={task.status === "Pending"}
-      class:badge-success={task.status === "Done"}
-      class:badge-warning={task.status === "In Progress"}
-      class:badge-info={task.status === "To Do"}
+      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap
+        {task.status === 'Pending' ? 'bg-gray-100 text-gray-700' : task.status === 'Done' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}"
     >
       {taskStatusLabel(task.status)}
     </span>
   </td>
   <td class="py-3 px-4">
-    <span class="badge badge-outline">
+    <span class="inline-flex items-center rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600">
       {task.projectPhase || "-"}
     </span>
   </td>
@@ -114,11 +111,8 @@
       <td class="py-3 px-4 text-gray-600 text-sm">{subtask.assignedTo || "-"}</td>
       <td class="py-3 px-4">
         <span
-          class="badge h-auto min-h-7 px-2 py-0.5 whitespace-nowrap text-xs"
-          class:badge-neutral={subtask.status === "Pending"}
-          class:badge-success={subtask.status === "Done"}
-          class:badge-warning={subtask.status === "In Progress"}
-          class:badge-info={subtask.status === "To Do"}
+          class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap
+            {subtask.status === 'Pending' ? 'bg-gray-100 text-gray-700' : subtask.status === 'Done' ? 'bg-green-100 text-green-700' : subtask.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}"
         >
           {taskStatusLabel(subtask.status)}
         </span>

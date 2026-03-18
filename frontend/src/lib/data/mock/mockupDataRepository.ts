@@ -7,7 +7,20 @@ import type {
 } from "$lib/domain/project/types";
 import { writable } from "svelte/store";
 
-// Realistic German/Swiss employees
+// Seeded PRNG (mulberry32) — deterministic mock data across refreshes
+function createSeededRandom(seed: number) {
+    let s = seed | 0;
+    return () => {
+        s = (s + 0x6d2b79f5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+const seededRandom = createSeededRandom(42);
+
+// Realistic German/Swiss employees — these are the COMPANY's own team
 const germanEmployees = [
     { firstName: "Michael", lastName: "Mueller" },
     { firstName: "Sandra", lastName: "Schmidt" },
@@ -19,6 +32,20 @@ const germanEmployees = [
     { firstName: "Daniela", lastName: "Wolf" },
     { firstName: "Klaus", lastName: "Meyer" },
     { firstName: "Martina", lastName: "Hoffmann" },
+];
+
+// Separate names for customer contact persons — NOT the same as company employees
+const customerContacts = [
+    { firstName: "Lukas", lastName: "Brunner" },
+    { firstName: "Anna", lastName: "Steiner" },
+    { firstName: "Markus", lastName: "Gerber" },
+    { firstName: "Julia", lastName: "Wyss" },
+    { firstName: "Reto", lastName: "Huber" },
+    { firstName: "Sabine", lastName: "Baumann" },
+    { firstName: "Patrick", lastName: "Frei" },
+    { firstName: "Nicole", lastName: "Zimmermann" },
+    { firstName: "Christian", lastName: "Moser" },
+    { firstName: "Karin", lastName: "Graf" },
 ];
 
 const swissCompanies = [
@@ -148,26 +175,26 @@ const hourlyRateTypes = ["SystemEngineer", "ProjectManager", "Developer", "QA", 
 export const customerList: Customer[] = swissCompanies.map((company, index) => ({
     customerID: 1000 + index,
     companyName: company.name,
-    contactName: germanEmployees[index % germanEmployees.length].firstName + " " + germanEmployees[index % germanEmployees.length].lastName,
+    contactName: `${customerContacts[index % customerContacts.length].firstName} ${customerContacts[index % customerContacts.length].lastName}`,
     email: `contact@${company.name.toLowerCase().replace(/\s+/g, "")}.ch`,
-    phone: `+41 ${Math.floor(Math.random() * 89) + 1} ${Math.floor(Math.random() * 9000000) + 1000000}`,
+    phone: `+41 ${Math.floor(seededRandom() * 89) + 1} ${Math.floor(seededRandom() * 9000000) + 1000000}`,
     zip: parseInt(company.zip),
 }));
 
-export const customerEmployeeList: CustomerEmployee[] = customerList.flatMap((customer) =>
-    germanEmployees.slice(0, 3).map((emp, index) => ({
-        customerID: customer.customerID,
-        employeeID: customer.customerID * 100 + index + 1,
-        firstName: emp.firstName,
-        lastName: emp.lastName,
-        phone: `+41 79 ${Math.floor(Math.random() * 9000000) + 1000000}`,
-        email: `${emp.firstName.toLowerCase()}.${emp.lastName.toLowerCase()}@${customer.companyName
-            .toLowerCase()
-            .replace(/\s+/g, "")}.ch`,
-        jobTitle: jobTitles[Math.floor(Math.random() * jobTitles.length)],
-        department: departments[Math.floor(Math.random() * departments.length)],
-    })),
-);
+// The company's own employees (the team using OnTrack)
+export const companyEmployeeList: CustomerEmployee[] = germanEmployees.map((emp, index) => ({
+    customerID: 0,
+    employeeID: index + 1,
+    firstName: emp.firstName,
+    lastName: emp.lastName,
+    phone: `+41 79 ${String(1000000 + index * 1111111).slice(0, 7)}`,
+    email: `${emp.firstName.toLowerCase()}.${emp.lastName.toLowerCase()}@ontrack.ch`,
+    jobTitle: jobTitles[index % jobTitles.length],
+    department: departments[index % departments.length],
+}));
+
+// Backward compatible alias — other pages import this name
+export const customerEmployeeList = companyEmployeeList;
 
 const DUMMY_PROJECT_COUNT = 50;
 
@@ -180,8 +207,14 @@ const initialProjectList: Project[] = Array.from({ length: DUMMY_PROJECT_COUNT }
     };
 
     const customer = customerList[index % customerList.length];
-    const managers = customerEmployeeList.filter((emp) => emp.customerID === customer.customerID);
-    const manager = managers[0] || customerEmployeeList[0];
+
+    // Pick 2-3 team members from the company pool for this project
+    const teamSize = 2 + (index % 2); // 2 or 3 members
+    const teamStart = (index * 3) % companyEmployeeList.length;
+    const projectTeam = Array.from({ length: teamSize }, (_, i) =>
+        companyEmployeeList[(teamStart + i) % companyEmployeeList.length],
+    );
+    const manager = projectTeam[0];
     
     const startDate = new Date(2026, 0 + Math.floor(index / 3), 1 + (index % 28));
     const dueDate = new Date(startDate);
@@ -223,7 +256,7 @@ const initialProjectList: Project[] = Array.from({ length: DUMMY_PROJECT_COUNT }
         startDate,
         projectID,
         projectManager: `${manager.firstName} ${manager.lastName}`,
-        projectstatus: projectStatuses[Math.floor(Math.random() * projectStatuses.length)],
+        projectstatus: projectStatuses[Math.floor(seededRandom() * projectStatuses.length)],
         initiationPhase: [
             buildPhase(projectID * 10 + 1, "Initiation", initiationStart, initiationDue),
         ],
@@ -236,9 +269,9 @@ const initialProjectList: Project[] = Array.from({ length: DUMMY_PROJECT_COUNT }
         closurePhase: [
             buildPhase(projectID * 10 + 4, "Closure", closureStart, closureDue),
         ],
-        Tasks: realisticTasks.map((taskTemplate, taskIndex) => {
+        Tasks: realisticTasks.slice(0, 5 + (index % 3)).map((taskTemplate, taskIndex) => {
             const phases: ProjectPhase["phaseName"][] = ["Initiation", "Planing", "Execution", "Closure"];
-            const projectPhase = phases[Math.floor(Math.random() * phases.length)];
+            const projectPhase = phases[Math.floor(seededRandom() * phases.length)];
             
             const phaseLookup: Record<ProjectPhase["phaseName"], number> = {
                 Initiation: projectID * 10 + 1,
@@ -248,12 +281,12 @@ const initialProjectList: Project[] = Array.from({ length: DUMMY_PROJECT_COUNT }
             };
 
             const taskStartDate = new Date(startDate);
-            taskStartDate.setDate(taskStartDate.getDate() + Math.floor(Math.random() * 30));
+            taskStartDate.setDate(taskStartDate.getDate() + Math.floor(seededRandom() * 30));
             
             const taskDueDate = new Date(taskStartDate);
             taskDueDate.setDate(taskDueDate.getDate() + Math.floor(taskTemplate.hours / 8));
 
-            const teamMember = managers[Math.floor(Math.random() * managers.length)];
+            const teamMember = projectTeam[Math.floor(seededRandom() * projectTeam.length)];
 
             return {
                 taskID: projectID * 100 + taskIndex,
@@ -262,33 +295,33 @@ const initialProjectList: Project[] = Array.from({ length: DUMMY_PROJECT_COUNT }
                 dueDate: taskDueDate,
                 phaseId: phaseLookup[projectPhase],
                 projectPhase,
-                status: taskStatuses[Math.floor(Math.random() * taskStatuses.length)],
+                status: taskStatuses[Math.floor(seededRandom() * taskStatuses.length)],
                 projectID,
                 description: `Task for ${projTemplate.title} - ${taskTemplate.name}`,
                 assignedTo: `${teamMember.firstName} ${teamMember.lastName}`,
                 notificationSent: false,
                 estimatedHours: taskTemplate.hours,
-                hourlyRateType: hourlyRateTypes[Math.floor(Math.random() * hourlyRateTypes.length)],
+                hourlyRateType: hourlyRateTypes[Math.floor(seededRandom() * hourlyRateTypes.length)],
                 subtasks: (realisticSubtasks[taskTemplate.name] || []).map((subtaskName, subtaskIndex) => {
                     const subtaskStartDate = new Date(taskStartDate);
                     subtaskStartDate.setDate(subtaskStartDate.getDate() + subtaskIndex);
                     
                     const subtaskDueDate = new Date(taskDueDate);
-                    subtaskDueDate.setDate(subtaskDueDate.getDate() - Math.floor(Math.random() * 2));
+                    subtaskDueDate.setDate(subtaskDueDate.getDate() - Math.floor(seededRandom() * 2));
 
-                    const subtaskMember = managers[Math.floor(Math.random() * managers.length)];
+                    const subtaskMember = projectTeam[Math.floor(seededRandom() * projectTeam.length)];
 
                     return {
                         subtaskID: projectID * 1000 + taskIndex * 10 + subtaskIndex,
                         taskID: projectID * 100 + taskIndex,
                         title: subtaskName,
                         description: `Subtask: ${subtaskName}`,
-                        status: taskStatuses[Math.floor(Math.random() * taskStatuses.length)],
+                        status: taskStatuses[Math.floor(seededRandom() * taskStatuses.length)],
                         assignedTo: `${subtaskMember.firstName} ${subtaskMember.lastName}`,
                         startDate: subtaskStartDate,
                         dueDate: subtaskDueDate,
-                        estimatedHours: Math.floor(Math.random() * 30) + 5,
-                        hourlyRateType: hourlyRateTypes[Math.floor(Math.random() * hourlyRateTypes.length)],
+                        estimatedHours: Math.floor(seededRandom() * 30) + 5,
+                        hourlyRateType: hourlyRateTypes[Math.floor(seededRandom() * hourlyRateTypes.length)],
                     };
                 }),
             };

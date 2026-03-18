@@ -6,7 +6,7 @@
         updateAssignmentMeta,
         updateAssignmentStatus,
     } from "$lib/modules/projects/store";
-    import { customerEmployeeList } from "$lib/modules/projects/dataSource.mock";
+    import { companyEmployeeList } from "$lib/modules/projects/dataSource.mock";
     import type { Project } from "$lib/modules/projects/contracts";
     import {
         buildDashboardState,
@@ -184,8 +184,8 @@
     let modalMaxWorkDate = $derived(assignmentModalRuntime?.end ? ymd(assignmentModalRuntime.end) : "");
 
     let colleagues = $derived(
-        customerEmployeeList
-            .filter((e) => e.customerID === $currentUser.customerID && e.employeeID !== $currentUser.employeeID)
+        companyEmployeeList
+            .filter((e) => e.employeeID !== $currentUser.employeeID)
             .map((e) => `${e.firstName} ${e.lastName}`)
     );
 
@@ -199,7 +199,6 @@
         const state = buildDashboardState(
             projects,
             `${$currentUser.firstName} ${$currentUser.lastName}`,
-            $currentUser.customerID,
             hourlyRates,
         );
         assignments = state.assignments;

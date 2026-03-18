@@ -42,17 +42,17 @@
           {#each teamMembers as member (member.name)}
             <tr class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" on:click={() => toggleMember(member.name)}>
               <td class="py-3 px-4 text-center">
-                <button class="btn btn-sm btn-ghost" on:click|stopPropagation>
+                <button class="rounded-md px-2 py-1 text-sm text-gray-500 transition hover:bg-gray-100" on:click|stopPropagation>
                   {expandedTeamMembers.has(member.name) ? "-" : "+"}
                 </button>
               </td>
               <td class="py-3 px-4"><p class="font-medium text-gray-900">{member.name}</p></td>
               <td class="py-3 px-4 text-center">
-                <span class={`badge ${member.role === "ProjectManager" ? "badge-primary" : "badge-outline"}`}>
+                <span class={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${member.role === "ProjectManager" ? "bg-blue-100 text-blue-700" : "border border-gray-300 bg-white text-gray-600"}`}>
                   {member.role === "ProjectManager" ? $t.projects.projectManager : $t.projects.member}
                 </span>
               </td>
-              <td class="py-3 px-4 text-center"><span class="badge badge-outline">{member.tasks.length}</span></td>
+              <td class="py-3 px-4 text-center"><span class="inline-flex items-center rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600">{member.tasks.length}</span></td>
               <td class="py-3 px-4 text-center"><p class="font-semibold text-gray-900">{member.totalHours}h</p></td>
               <td class="py-3 px-4 text-right"><p class="font-semibold text-gray-900">{formatBudget(member.totalBudget)}</p></td>
               <td class="py-3 px-4 text-center">
@@ -78,15 +78,12 @@
                               <p class="font-semibold text-gray-900">{task.title}</p>
                               <p class="text-sm text-gray-600 mt-1">{task.description || "-"}</p>
                               <div class="flex gap-2 mt-2">
-                                <span class="badge h-auto min-h-7 px-2 py-0.5 whitespace-nowrap text-xs"
-                                  class:badge-neutral={task.status === "Pending"}
-                                  class:badge-success={task.status === "Done"}
-                                  class:badge-warning={task.status === "In Progress"}
-                                  class:badge-info={task.status === "To Do"}
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap
+                                  {task.status === 'Pending' ? 'bg-gray-100 text-gray-700' : task.status === 'Done' ? 'bg-green-100 text-green-700' : task.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}"
                                 >
                                   {task.status === "Pending" ? $t.taskStatus.pending : task.status === "To Do" ? $t.taskStatus.toDo : task.status === "In Progress" ? $t.taskStatus.inProgress : $t.taskStatus.done}
                                 </span>
-                                {#if task.projectPhase}<span class="badge badge-outline badge-sm">{task.projectPhase}</span>{/if}
+                                {#if task.projectPhase}<span class="inline-flex items-center rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-600">{task.projectPhase}</span>{/if}
                               </div>
                             </div>
                             <div class="text-right whitespace-nowrap">

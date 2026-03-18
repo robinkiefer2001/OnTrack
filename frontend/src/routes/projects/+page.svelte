@@ -75,7 +75,6 @@
   $: userScopedProjects = filterUserProjects(
     $projectList,
     `${$currentUser.firstName} ${$currentUser.lastName}`,
-    $currentUser.customerID,
   );
 
   $: customers = Array.from(

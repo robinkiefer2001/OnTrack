@@ -47,7 +47,6 @@
         const nextState = buildDashboardState(
             projects,
             userName,
-            $currentUser.customerID,
             hourlyRates,
         );
 

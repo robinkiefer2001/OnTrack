@@ -107,4 +107,6 @@ export interface CustomerEmployee {
   email: string;
   jobTitle: string | null;
   department: string | null;
+  employmentPercent?: number;
+  defaultHoursPerWeek?: number;
 }

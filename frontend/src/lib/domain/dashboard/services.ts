@@ -21,11 +21,8 @@ export function getStatusCounts(items: Assignment[]): Record<WorkStatus, number>
 export function filterUserProjects(
   allProjects: Project[],
   currentUserFullName: string,
-  currentCustomerId: number,
 ): Project[] {
   return allProjects.filter((project) => {
-    if (project.customerID !== currentCustomerId) return false;
-
     return (project.Tasks || []).some(
       (task) =>
         task.assignedTo === currentUserFullName ||
@@ -141,10 +138,9 @@ export function buildProjectSnapshots(
 export function buildDashboardState(
   projects: Project[],
   currentUserFullName: string,
-  currentCustomerId: number,
   hourlyRates: HourlyRate[],
 ): DashboardState {
-  const userProjects = filterUserProjects(projects, currentUserFullName, currentCustomerId);
+  const userProjects = filterUserProjects(projects, currentUserFullName);
   const assignments = userProjects.flatMap((project) =>
     collectAssignments(project, currentUserFullName, hourlyRates),
   );

@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import { customerEmployeeList } from "$lib/data/mock/projectDataSource";
+import { companyEmployeeList } from "$lib/data/mock/projectDataSource";
 
 export interface CurrentUser {
   employeeID: number;
@@ -9,10 +9,9 @@ export interface CurrentUser {
   phone: string;
   jobTitle: string;
   department: string;
-  customerID: number;
 }
 
-function asCurrentUser(employee: (typeof customerEmployeeList)[number]): CurrentUser {
+function asCurrentUser(employee: (typeof companyEmployeeList)[number]): CurrentUser {
   return {
     employeeID: employee.employeeID,
     firstName: employee.firstName,
@@ -21,7 +20,6 @@ function asCurrentUser(employee: (typeof customerEmployeeList)[number]): Current
     phone: employee.phone ?? "",
     jobTitle: employee.jobTitle ?? "",
     department: employee.department ?? "",
-    customerID: employee.customerID,
   };
 }
 
@@ -29,29 +27,28 @@ function resolveStoredUser(raw: unknown): CurrentUser | null {
   if (!raw || typeof raw !== "object") return null;
 
   const parsed = raw as Partial<CurrentUser>;
-  const byId = customerEmployeeList.find((e) => e.employeeID === parsed.employeeID);
+  const byId = companyEmployeeList.find((e) => e.employeeID === parsed.employeeID);
   if (byId) return asCurrentUser(byId);
 
   const byEmail = parsed.email
-    ? customerEmployeeList.find((e) => e.email.toLowerCase() === String(parsed.email).toLowerCase())
+    ? companyEmployeeList.find((e) => e.email.toLowerCase() === String(parsed.email).toLowerCase())
     : null;
   if (byEmail) return asCurrentUser(byEmail);
 
-  const byNameAndCustomer =
-    parsed.firstName && parsed.lastName && parsed.customerID != null
-      ? customerEmployeeList.find(
+  const byName =
+    parsed.firstName && parsed.lastName
+      ? companyEmployeeList.find(
           (e) =>
-            e.customerID === parsed.customerID &&
             e.firstName === parsed.firstName &&
             e.lastName === parsed.lastName,
         )
       : null;
 
-  return byNameAndCustomer ? asCurrentUser(byNameAndCustomer) : null;
+  return byName ? asCurrentUser(byName) : null;
 }
 
 function getInitialUser(): CurrentUser {
-  const fallbackUser = asCurrentUser(customerEmployeeList[0]);
+  const fallbackUser = asCurrentUser(companyEmployeeList[0]);
 
   if (typeof window !== "undefined") {
     const stored = localStorage.getItem("currentUser");
@@ -90,7 +87,7 @@ function createCurrentUserStore() {
       if (typeof window !== "undefined") {
         localStorage.removeItem("currentUser");
       }
-      set(asCurrentUser(customerEmployeeList[0]));
+      set(asCurrentUser(companyEmployeeList[0]));
     },
   };
 }

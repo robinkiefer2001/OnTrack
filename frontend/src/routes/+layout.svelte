@@ -2,15 +2,36 @@
   import onTrackCorpFav from "$lib/assets/onTrackCorpFav.png";
   import "../app.css";
   import { goto } from "$app/navigation";
+  import { page } from "$app/stores";
   import { t } from "$lib/language";
-  import { currentUser, getUserInitials, type CurrentUser } from "$lib/modules/user/store";
-  import { customerEmployeeList } from "$lib/modules/projects/dataSource.mock";
-  import type { CustomerEmployee } from "$lib/modules/projects/contracts";
+  import { currentUser, getUserInitials } from "$lib/modules/user/store";
   import { projectList } from "$lib/modules/projects/store";
   import { taskNotifications } from "$lib/state/notifications/taskNotifications.store";
+  import { ensureRbac, currentPermissions } from "$lib/state/rbac/rbac.store";
+  import { isAuthenticated, authChecked, checkSession, logout } from "$lib/state/auth/auth.store";
+  import HelpButton from "$lib/components/HelpButton.svelte";
 
   let { children } = $props();
   let navSearch = $state("");
+
+  let isLoginPage = $derived($page.url.pathname === "/login");
+
+  let isAdmin = $derived($currentPermissions.has("admin.access"));
+
+  // Check auth session on first render
+  $effect(() => { checkSession(); });
+
+  // Redirect to login if not authenticated (except on login page)
+  $effect(() => {
+    if ($authChecked && !$isAuthenticated && !isLoginPage) {
+      goto("/login");
+    }
+  });
+
+  // Load RBAC data once authenticated
+  $effect(() => {
+    if ($isAuthenticated) { ensureRbac(); }
+  });
 
   let userFullName = $derived(`${$currentUser.firstName} ${$currentUser.lastName}`);
 
@@ -27,7 +48,6 @@
     const items: Array<{ id: string; title: string; type: "overdue" | "dueSoon"; projectTitle: string }> = [];
 
     for (const project of $projectList) {
-      if (project.customerID !== $currentUser.customerID) continue;
 
       for (const task of project.Tasks || []) {
         const addTask = task.assignedTo === userFullName;
@@ -60,22 +80,14 @@
     goto(query ? `/projects?q=${encodeURIComponent(query)}` : "/projects");
   }
 
-  function switchUser(user: CurrentUser | CustomerEmployee) {
-    currentUser.switchUser({
-      employeeID: user.employeeID,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone ?? "",
-      jobTitle: user.jobTitle ?? "",
-      department: user.department ?? "",
-      customerID: user.customerID,
-    });
-  }
-
   function openNotifications() {
     taskNotifications.markAllAsReadForUser(userFullName);
     goto("/tasks");
+  }
+
+  async function handleLogout() {
+    await logout();
+    goto("/login");
   }
 </script>
 
@@ -83,6 +95,12 @@
   <link rel="icon" href={onTrackCorpFav} />
 </svelte:head>
 
+{#if isLoginPage}
+  <!-- Login page gets no nav -->
+  <main>
+    {@render children()}
+  </main>
+{:else if $authChecked && $isAuthenticated}
 <nav class="sticky top-0 z-40 w-full border-b border-gray-200 bg-white">
   <div class="mx-auto flex h-16 items-center gap-6 px-6">
 
@@ -99,7 +117,10 @@
       <a href="/customers" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.customers}</a>
       <a href="/employees" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.employees}</a>
       <a href="/tasks" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.tasks}</a>
-      <a href="/admin" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.admin}</a>
+      <a href="/reports" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.reports}</a>
+      {#if isAdmin}
+        <a href="/admin" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 hover:text-gray-900">{$t.nav.admin}</a>
+      {/if}
     </div>
 
     <!-- Right side -->
@@ -185,44 +206,17 @@
             <p class="text-xs text-gray-600">{$currentUser.jobTitle}</p>
             <p class="text-xs text-gray-500">{$currentUser.email}</p>
           </div>
-          <div class="mt-2 px-1">
-            <p class="mb-2 px-2 text-xs font-semibold uppercase tracking-widest text-gray-400">Switch User</p>
-            <div class="max-h-64 space-y-0.5 overflow-y-auto">
-              {#each customerEmployeeList as employee (employee.employeeID)}
-                {#if employee.employeeID !== $currentUser.employeeID}
-                  <button
-                    onclick={() => switchUser(employee)}
-                    class="w-full rounded-xl px-3 py-2 text-left text-sm transition hover:bg-gray-100"
-                  >
-                    <div class="flex items-center gap-2">
-                      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                        {getUserInitials(employee.firstName, employee.lastName)}
-                      </div>
-                      <div>
-                        <p class="font-medium text-gray-900">{employee.firstName} {employee.lastName}</p>
-                        <p class="text-xs text-gray-500">{employee.department}</p>
-                      </div>
-                    </div>
-                  </button>
-                {:else}
-                  <div class="rounded-xl bg-blue-50 px-3 py-2 text-sm">
-                    <div class="flex items-center gap-2">
-                      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
-                        {getUserInitials(employee.firstName, employee.lastName)}
-                      </div>
-                      <div>
-                        <p class="font-medium text-blue-900">{employee.firstName} {employee.lastName}</p>
-                        <p class="text-xs text-blue-600">Current User</p>
-                      </div>
-                    </div>
-                  </div>
-                {/if}
-              {/each}
-            </div>
-          </div>
           <div class="mt-2 grid grid-cols-2 gap-1 border-t border-gray-100 px-1 pt-2">
             <a href="/myprofile" class="rounded-xl px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100">{$t.nav.myProfile}</a>
             <a href="/settings" class="rounded-xl px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100">{$t.nav.settings}</a>
+          </div>
+          <div class="border-t border-gray-100 px-1 pt-2 mt-1">
+            <button
+              onclick={handleLogout}
+              class="w-full rounded-xl px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50"
+            >
+              {$t.login.logout}
+            </button>
           </div>
         </div>
       </div>
@@ -234,3 +228,5 @@
 <main>
   {@render children()}
 </main>
+<HelpButton />
+{/if}

@@ -54,103 +54,85 @@
   );
 </script>
 
-<div class="w-full rounded-4xl border border-base-300 overflow-hidden bg-white shadow-sm">
-  <div class="stats stats-vertical xl:stats-horizontal w-full">
-    <div class="stat">
-      <div class="stat-title">{$t.home.totalProjects}</div>
-      <div class="stat-value">{totalProjects}</div>
-      <div class="stat-desc">{countProjects(projects)} {$t.home.visibleProjects}</div>
+<!-- Header -->
+<section class="overflow-hidden rounded-4xl border border-gray-200 bg-white shadow-sm">
+  <div class="flex items-start justify-between p-6 lg:p-8">
+    <div>
+      <p class="text-sm uppercase tracking-[0.24em] text-blue-600">{$t.projects.title}</p>
+      <h1 class="mt-2 text-3xl font-bold tracking-tight text-gray-900">{$t.projects.title}</h1>
+      <p class="mt-1 text-sm text-gray-500">{countProjects(projects)} / {totalProjects}</p>
     </div>
-    <div class="stat">
-      <div class="stat-title">{$t.home.activeProjects}</div>
-      <div class="stat-value">{activeProjects}</div>
-    </div>
-    <div class="stat {overdueProjects > 0 ? 'bg-error/5' : ''}">
-      <div class="stat-title">{$t.home.overdueProjects}</div>
-      <div class="stat-value {overdueProjects > 0 ? 'text-error' : ''}">{overdueProjects}</div>
-    </div>
-    <div class="stat {overBudgetProjects > 0 ? 'bg-warning/10' : ''}">
-      <div class="stat-title">{$t.home.overBudgetProjects}</div>
-      <div class="stat-value {overBudgetProjects > 0 ? 'text-warning' : 'text-success'}">{overBudgetProjects}</div>
-      <div class="stat-desc">{overBudgetProjects > 0 ? $t.home.overBudgetDesc : $t.home.onTrackDesc}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-title">{$t.home.totalBudget}</div>
-      <div class="stat-value text-2xl">{formatBudget(totalBudget)}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-title">{$t.home.totalHours}</div>
-      <div class="stat-value text-2xl">{formatHours(totalHours)}</div>
-    </div>
+    <button
+      class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+      on:click={() => dispatch("newProject")}
+    >
+      + {$t.projects.newProject}
+    </button>
   </div>
-</div>
-<div class="w-full rounded-4xl border border-base-300 overflow-hidden bg-white shadow-sm">
-  <ul
-    class="flex flex-wrap items-center gap-4 bg-base-100 p-4 px-6"
+</section>
+
+<!-- KPI Cards -->
+<section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+  <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+    <p class="text-sm font-medium text-gray-500">{$t.home.totalProjects}</p>
+    <p class="mt-2 text-4xl font-bold text-gray-900">{totalProjects}</p>
+  </article>
+  <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+    <p class="text-sm font-medium text-gray-500">{$t.home.activeProjects}</p>
+    <p class="mt-2 text-4xl font-bold text-blue-700">{activeProjects}</p>
+  </article>
+  <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm {overdueProjects > 0 ? 'border-red-200 bg-red-50/50' : ''}">
+    <p class="text-sm font-medium text-gray-500">{$t.home.overdueProjects}</p>
+    <p class="mt-2 text-4xl font-bold {overdueProjects > 0 ? 'text-red-600' : 'text-gray-900'}">{overdueProjects}</p>
+  </article>
+  <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm {overBudgetProjects > 0 ? 'border-orange-200 bg-orange-50/50' : ''}">
+    <p class="text-sm font-medium text-gray-500">{$t.home.overBudgetProjects}</p>
+    <p class="mt-2 text-4xl font-bold {overBudgetProjects > 0 ? 'text-orange-600' : 'text-green-700'}">{overBudgetProjects}</p>
+  </article>
+  <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+    <p class="text-sm font-medium text-gray-500">{$t.home.totalBudget}</p>
+    <p class="mt-2 text-3xl font-bold text-gray-900">{formatBudget(totalBudget)}</p>
+  </article>
+  <article class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+    <p class="text-sm font-medium text-gray-500">{$t.home.totalHours}</p>
+    <p class="mt-2 text-3xl font-bold text-gray-900">{formatHours(totalHours)}</p>
+  </article>
+</section>
+
+<!-- Toolbar: Actions + Filters -->
+<section class="flex flex-wrap items-center gap-3">
+  {#if selectedProject != null}
+    <button
+      class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+      on:click={() => dispatch("showCurrentProject")}
+    >{$t.projects.showProject}</button>
+    <button
+      class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+      on:click={() => dispatch("printProjectState")}
+    >{$t.projects.printProjectState}</button>
+  {/if}
+  <input
+    type="search"
+    placeholder={$t.projects.fullTextSearch}
+    class="w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 transition focus:border-blue-300 shadow-sm"
+    bind:value={fullTextSearch}
+  />
+  <select
+    class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 shadow-sm"
+    bind:value={projectManagerFilter}
   >
-    <li>
-      <button class="btn btn-neutral" on:click={() => dispatch("newProject")}
-        >{$t.projects.newProject}</button
-      >
-    </li>
-
-    {#if selectedProject == null}
-      <li>
-        <button class="btn btn-neutral" disabled
-          >{$t.projects.printProjectState}</button
-        >
-      </li>
-      <li>
-        <button class="btn btn-neutral" disabled
-          >{$t.projects.modifyProject}</button
-        >
-      </li>
-      <li>
-        <button class="btn" disabled>{$t.projects.showProject}</button>
-      </li>
-    {:else}
-      <li>
-        <button class="btn" on:click={() => dispatch("printProjectState")}
-          >{$t.projects.printProjectState}</button
-        >
-      </li>
-      <li>
-        <button class="btn" on:click={() => dispatch("modifyProject")}
-          >{$t.projects.modifyProject}</button
-        >
-      </li>
-      <li>
-        <button class="btn" on:click={() => dispatch("showCurrentProject")}
-          >{$t.projects.showProject}</button
-        >
-      </li>
-    {/if}
-    <li>
-      <label class="input">
-        <input
-          type="search"
-          placeholder={$t.projects.fullTextSearch}
-          bind:value={fullTextSearch}
-        />
-      </label>
-    </li>
-
-    <li>
-      <select class="select select-bordered" bind:value={projectManagerFilter}>
-        <option value="">{$t.projects.allProjectManagers}</option>
-        {#each projectManagers as pm}
-          <option value={pm}>{pm}</option>
-        {/each}
-      </select>
-    </li>
-
-    <li>
-      <select class="select select-bordered" bind:value={customerFilter}>
-        <option value="">{$t.projects.allCustomers}</option>
-        {#each customers as customer}
-          <option value={customer}>{customer}</option>
-        {/each}
-      </select>
-    </li>
-  </ul>
-</div>
+    <option value="">{$t.projects.allProjectManagers}</option>
+    {#each projectManagers as pm}
+      <option value={pm}>{pm}</option>
+    {/each}
+  </select>
+  <select
+    class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-300 shadow-sm"
+    bind:value={customerFilter}
+  >
+    <option value="">{$t.projects.allCustomers}</option>
+    {#each customers as customer}
+      <option value={customer}>{customer}</option>
+    {/each}
+  </select>
+</section>
