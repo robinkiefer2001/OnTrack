@@ -1,0 +1,32 @@
+name: Deploy Infrastructure
+
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Docker Compose
+        run: |
+          docker compose version
+
+      - name: Build all services with Compose
+        run: |
+          docker compose -f docker-compose.yml build
+
+      # Optionally, bring up the stack (uncomment if you want to run containers)
+      # - name: Deploy stack
+      #   run: |
+      #     docker compose -f docker-compose.yml up -d
