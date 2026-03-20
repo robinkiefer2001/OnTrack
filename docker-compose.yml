@@ -3,6 +3,7 @@ services:
   frontend:
     image: ubuntu:22.04
     container_name: ontrack-frontend
+    hostname: ontrack-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile

@@ -1,13 +1,10 @@
-# SvelteKit frontend Dockerfile with all dependencies
+# SvelteKit frontend Dockerfile for CI/CD (COPY instead of git clone)
 FROM node:20-bullseye-slim
 
-# Install git
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-# Clone the repository (frontend only)
 WORKDIR /app
-RUN git clone --depth 1 --branch main https://github.com/robinkiefer2001/OnTrack.git repo
-WORKDIR /app/repo/frontend
+
+# Copy frontend source code from build context
+COPY . .
 
 # Install all dependencies (Svelte, DaisyUI, Chart.js, etc.)
 RUN npm install --legacy-peer-deps && npm run build
