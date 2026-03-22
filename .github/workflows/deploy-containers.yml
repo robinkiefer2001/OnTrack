@@ -1,46 +1,93 @@
 name: Deploy & Build Containers
 
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
 jobs:
-  deploy:
-    stage: deploy
-    script:
-      - echo "Deploying containers..."
-      - echo "Deploy frontend container..."
-      - docker pull ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
-      - echo "Deploy postgres container..."
-      - docker pull ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
-      - echo "Deploy backend container..."
-      - docker pull ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
-  
-  test:
-    stage: test
-    script:
-      - echo "Running tests..."
-      - docker image inspect ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest || exit 1
-      - docker image inspect ghcr.io/robinkiefer2001/ontrack-backend:backend-latest || exit 1
-      - docker image inspect ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest || exit 1
-      - echo "Tests passed successfully!"
-  
   build:
-    stage: build
-    script:
-      - echo "Building containers..."
-      - echo "Building frontend container..."
-      - docker build -t ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest ./frontend
-      - echo "Building postgres container..."
-      - docker build -t ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest ./postgres
-      - echo "Building backend container..."
-      - docker build -t ghcr.io/robinkiefer2001/ontrack-backend:backend-latest ./backend
-  
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Build frontend container
+        run: |
+          echo "Building frontend container..."
+          docker build -t ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest ./frontend
+      - name: Build postgres container
+        run: |
+          echo "Building postgres container..."
+          docker build -t ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest ./postgres
+      - name: Build backend container
+        run: |
+          echo "Building backend container..."
+          docker build -t ghcr.io/robinkiefer2001/ontrack-backend:backend-latest ./backend
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Start postgres container
+        run: |
+          docker run -d --name test-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
+      - name: Start backend container
+        run: |
+          docker run -d --name test-backend --link test-postgres:postgres -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres -p 8000:8000 ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
+      - name: Start frontend container
+        run: |
+          docker run -d --name test-frontend --link test-backend:backend -e BACKEND_URL=http://backend:8000 -p 5173:5173 ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
+      - name: Wait for backend to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health; then
+              echo "Backend is up!"; exit 0;
+            fi;
+            sleep 2;
+          done;
+          echo "Backend did not start in time"; exit 1
+      - name: Wait for frontend to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:5173; then
+              echo "Frontend is up!"; exit 0;
+            fi;
+            sleep 2;
+          done;
+          echo "Frontend did not start in time"; exit 1
+      - name: Stop and remove test containers
+        if: always()
+        run: |
+          docker rm -f test-frontend test-backend test-postgres || true
+      - name: Tests passed
+        run: echo "Healthchecks passed successfully!"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Deploy frontend container
+        run: |
+          echo "Deploying frontend container..."
+          docker pull ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
+      - name: Deploy postgres container
+        run: |
+          echo "Deploying postgres container..."
+          docker pull ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
+      - name: Deploy backend container
+        run: |
+          echo "Deploying backend container..."
+          docker pull ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
+
   post-deploy:
-    stage: post-deploy
-    script:
-      - echo "Post-deployment steps..."
-      - docker ps -a
-      - echo "Containers deployed successfully!"
-  
-    rules:
-      - if: '$CI_COMMIT_BRANCH == "main"'
-        when: manual
-      - when: never
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Post-deployment steps
+        run: |
+          echo "Post-deployment steps..."
+          docker ps -a
+          echo "Containers deployed successfully!"
   
