@@ -18,22 +18,22 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Pull postgres image
-        run: docker pull ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
+        run: docker pull ghcr.io/robinkiefer2001/ontrack-postgres:latest
 
       - name: Pull backend image
-        run: docker pull ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
+        run: docker pull ghcr.io/robinkiefer2001/ontrack-backend:latest
 
       - name: Pull frontend image
-        run: docker pull ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
+        run: docker pull ghcr.io/robinkiefer2001/ontrack-frontend:latest
 
       - name: Start postgres container
-        run: docker run -d --name test-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
+        run: docker run -d --name test-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 ghcr.io/robinkiefer2001/ontrack-postgres:latest
 
       - name: Start backend container
-        run: docker run -d --name test-backend --link test-postgres:postgres -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres -p 8000:8000 ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
+        run: docker run -d --name test-backend --link test-postgres:postgres -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres -p 8000:8000 ghcr.io/robinkiefer2001/ontrack-backend:latest
 
       - name: Start frontend container
-        run: docker run -d --name test-frontend --link test-backend:backend -e BACKEND_URL=http://backend:8000 -p 5173:5173 ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
+        run: docker run -d --name test-frontend --link test-backend:backend -e BACKEND_URL=http://backend:8000 -p 5173:5173 ghcr.io/robinkiefer2001/ontrack-frontend:latest
 
       - name: Wait for backend to be ready
         run: |
