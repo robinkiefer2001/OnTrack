@@ -1,45 +1,43 @@
 name: Deploy & Build Containers
 
 on:
-  jobs:
-    build:
-      runs-on: ubuntu-latest
-      permissions:
-        contents: read
-        packages: write
-      steps:
-        - name: Checkout repository
-          uses: actions/checkout@v3
-        - name: Log in to GitHub Container Registry
-          run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-        - name: Build postgres container
-          run: |
-            echo "Building postgres container..."
-            docker build -t ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest ./postgres
-        - name: Push postgres image
-          run: docker push ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
-        - name: Build frontend container
-          run: |
-            echo "Building frontend container..."
-            docker build -t ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest ./frontend
-        - name: Build backend container
-          run: |
-            echo "Building backend container..."
-            docker build -t ghcr.io/robinkiefer2001/ontrack-backend:backend-latest ./backend
-        - name: Push frontend image
-          run: docker push ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
-        - name: Push backend image
-          run: docker push ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and push postgres
+        run: |
+          docker build -t ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest ./postgres
+          docker push ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
+      - name: Build and push frontend
+        run: |
           docker build -t ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest ./frontend
-        - name: Build backend container
-          run: |
-          echo "Building backend container..."
+          docker push ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
+      - name: Build and push backend
+        run: |
           docker build -t ghcr.io/robinkiefer2001/ontrack-backend:backend-latest ./backend
+          docker push ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
 
   test:
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
+      packages: read
     steps:
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Start postgres container
         run: |
           docker run -d --name test-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
@@ -77,7 +75,12 @@ on:
   deploy:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
+      packages: read
     steps:
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Deploy frontend container
         run: |
           echo "Deploying frontend container..."
@@ -101,4 +104,3 @@ on:
           echo "Post-deployment steps..."
           docker ps -a
           echo "Containers deployed successfully!"
-  
