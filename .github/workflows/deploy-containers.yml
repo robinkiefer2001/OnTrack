@@ -1,4 +1,4 @@
-name: Pull & Run Containers
+name: Pull & Run Containers (Self-hosted)
 
 on:
   workflow_dispatch:
@@ -12,48 +12,40 @@ permissions:
 
 jobs:
   run-containers:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted]  
     steps:
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u robinkiefer2001 --password-stdin
 
-      - name: Pull postgres image
-        run: docker pull ghcr.io/robinkiefer2001/ontrack-postgres:latest
-
-      - name: Pull backend image
-        run: docker pull ghcr.io/robinkiefer2001/ontrack-backend:latest
-
-      - name: Pull frontend image
-        run: docker pull ghcr.io/robinkiefer2001/ontrack-frontend:latest
-
-      - name: Start postgres container
-        run: docker run -d --name test-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 ghcr.io/robinkiefer2001/ontrack-postgres:latest
-
-      - name: Start backend container
-        run: docker run -d --name test-backend --link test-postgres:postgres -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres -p 8000:8000 ghcr.io/robinkiefer2001/ontrack-backend:latest
-
-      - name: Start frontend container
-        run: docker run -d --name test-frontend --link test-backend:backend -e BACKEND_URL=http://backend:8000 -p 5173:5173 ghcr.io/robinkiefer2001/ontrack-frontend:latest
-
-      - name: Wait for backend to be ready
+      - name: Pull images
         run: |
-          for i in {1..30}; do
-            if curl -s http://localhost:8000/health; then
-              echo "Backend is up!"; exit 0;
-            fi;
-            sleep 2;
-          done;
-          echo "Backend did not start in time"; exit 1
+          docker pull ghcr.io/robinkiefer2001/ontrack-postgres:latest
+          docker pull ghcr.io/robinkiefer2001/ontrack-backend:latest
+          docker pull ghcr.io/robinkiefer2001/ontrack-frontend:latest
 
-      - name: Wait for frontend to be ready
+      - name: Stop old containers (if any)
         run: |
-          for i in {1..30}; do
-            if curl -s http://localhost:5173; then
-              echo "Frontend is up!"; exit 0;
-            fi;
-            sleep 2;
-          done;
-          echo "Frontend did not start in time"; exit 1
+          docker rm -f frontend backend postgres || true
 
-      - name: Done
-        run: echo "Containers pulled and run successfully!"
+      - name: Start postgres
+        run: |
+          docker run -d --name postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -p 5432:5432 \
+            ghcr.io/robinkiefer2001/ontrack-postgres:latest
+
+      - name: Start backend
+        run: |
+          docker run -d --name backend \
+            --link postgres:postgres \
+            -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres \
+            -p 8000:8000 \
+            ghcr.io/robinkiefer2001/ontrack-backend:latest
+
+      - name: Start frontend
+        run: |
+          docker run -d --name frontend \
+            --link backend:backend \
+            -e BACKEND_URL=http://backend:8000 \
+            -p 5173:5173 \
+            ghcr.io/robinkiefer2001/ontrack-frontend:latest
