@@ -1,3 +1,5 @@
+name: Deploy & Build Containers
+
 deploy:
   stage: deploy
   script:
