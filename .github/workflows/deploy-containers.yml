@@ -1,27 +1,38 @@
 name: Deploy & Build Containers
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Build frontend container
-        run: |
-          echo "Building frontend container..."
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+      permissions:
+        contents: read
+        packages: write
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+        - name: Log in to GitHub Container Registry
+          run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        - name: Build postgres container
+          run: |
+            echo "Building postgres container..."
+            docker build -t ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest ./postgres
+        - name: Push postgres image
+          run: docker push ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest
+        - name: Build frontend container
+          run: |
+            echo "Building frontend container..."
+            docker build -t ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest ./frontend
+        - name: Build backend container
+          run: |
+            echo "Building backend container..."
+            docker build -t ghcr.io/robinkiefer2001/ontrack-backend:backend-latest ./backend
+        - name: Push frontend image
+          run: docker push ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest
+        - name: Push backend image
+          run: docker push ghcr.io/robinkiefer2001/ontrack-backend:backend-latest
           docker build -t ghcr.io/robinkiefer2001/ontrack-frontend:frontend-latest ./frontend
-      - name: Build postgres container
-        run: |
-          echo "Building postgres container..."
-          docker build -t ghcr.io/robinkiefer2001/ontrack-postgres:postgres-latest ./postgres
-      - name: Build backend container
-        run: |
+        - name: Build backend container
+          run: |
           echo "Building backend container..."
           docker build -t ghcr.io/robinkiefer2001/ontrack-backend:backend-latest ./backend
 
