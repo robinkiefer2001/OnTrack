@@ -22,19 +22,19 @@ jobs:
       
       - name: Create deployment directory
         run: |
-          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT" \
             "mkdir ./var/opt/ontrack"
 
       - name: copy docker-compose-build.yml
         run: |
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             ../../container/docker-compose-deploy.yml \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-deploy.yml
+            "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT":~/var/opt/ontrack/docker-compose-deploy.yml
 
       - name: docker compose pull
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT" \
             '
             docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml pull
             '
@@ -55,7 +55,7 @@ jobs:
       - name: Test SSH Connection
         run: |
           if ssh -o BatchMode=yes -o ConnectTimeout=5 \
-            -i "./ssh/id_rsa" "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            -i "./ssh/id_rsa" "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT" \
             'echo "SSH connection successful"'
           then
             echo "SSH connection successful"
@@ -67,7 +67,7 @@ jobs:
       - name: Test Docker access
         run: |
           ssh -i "./ssh/id_rsa" \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT" \
             'docker --version' \
             || { echo "Docker not accessible"; exit 1; }
 
@@ -78,7 +78,7 @@ jobs:
     - name: Pull images on server
       run: |
         ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-          "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+          "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT" \
           '
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker pull ghcr.io/robinkiefer2001/ontrack-backend:latest
@@ -89,7 +89,7 @@ jobs:
     - name: Stop old containers (if any)
       run: |
         ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-        "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+        "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT" \
         '
         docker rm -f postgres backend frontend || true
         '
@@ -101,7 +101,7 @@ jobs:
       - name: Start Containers
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            "$DEPLOYMENT_USER"@"$DEPLOYMENT_ENDPOINT" \
             '
             docker compose -f "~/var/opt/ontrack/docker-compose-deploy.yml" up
             '
