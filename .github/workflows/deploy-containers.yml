@@ -41,6 +41,7 @@ jobs:
             '
 
   tests:
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - name: Test Server Connection
@@ -72,6 +73,7 @@ jobs:
             || { echo "Docker not accessible"; exit 1; }
 
   pull_images:
+    needs: tests
     runs-on: ubuntu-latest
     steps:
     - name: Pull images on server
@@ -94,6 +96,7 @@ jobs:
         '
 
   build_images:
+    needs: pull_images
     runs-on: ubuntu-latest
     steps:
       - name: Start Containers
