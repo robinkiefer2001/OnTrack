@@ -1,4 +1,4 @@
-name: Build and Push Docker Images
+name: build-images
 
 permissions:
   contents: read
@@ -41,16 +41,3 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/ontrack-backend:latest
             ghcr.io/${{ github.repository_owner }}/ontrack-backend:${{ github.sha }}
-
-      # Use official Postgres image, or add custom Dockerfile if needed
-      - name: Pull and tag postgres image
-        run: |
-          docker pull postgres:16
-          docker tag postgres:16 ghcr.io/${{ github.repository_owner }}/ontrack-postgres:latest
-          docker tag postgres:16 ghcr.io/${{ github.repository_owner }}/ontrack-postgres:${{ github.sha }}
-
-      - name: Push postgres image
-        run: |
-          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push ghcr.io/${{ github.repository_owner }}/ontrack-postgres:latest
-          docker push ghcr.io/${{ github.repository_owner }}/ontrack-postgres:${{ github.sha }}

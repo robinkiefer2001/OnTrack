@@ -1,4 +1,4 @@
-name: Pull & Run Containers (Self-hosted)
+name: Pull & Run Containers
 
 on:
   workflow_dispatch:
@@ -11,41 +11,121 @@ permissions:
   packages: read
 
 jobs:
-  run-containers:
-    runs-on: [self-hosted]  
+  prepare:
+    runs-on: ubuntu-latest
     steps:
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Pull images
+      - name: add ssh key
         run: |
-          docker pull ghcr.io/robinkiefer2001/ontrack-postgres:latest
-          docker pull ghcr.io/robinkiefer2001/ontrack-backend:latest
-          docker pull ghcr.io/robinkiefer2001/ontrack-frontend:latest
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-      - name: Stop old containers (if any)
+      - name: Create deployment directory
         run: |
-          docker rm -f frontend backend postgres || true
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            '
+            mkdir ~/var/opt/ontrack
+            '
 
+      - name: copy docker-compose-build.yml
+        run: |
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            ../../container/docker-compose-build.yml \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-build.yml
+
+      - name: docker compose pull
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            '
+            docker compose -f ~/var/opt/ontrack/docker-compose-build.yml pull
+            '
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Server Connection
+        run: |
+          if ping -c 1 "${{ secrets.DEPLOYMENT_ENDPOINT }}"; then
+            echo "Server is reachable"
+          else
+            echo "Server is not reachable"
+            exit 1
+          fi
+
+      - name: Test SSH Connection
+        run: |
+          if ssh -o BatchMode=yes -o ConnectTimeout=5 \
+            -i "~/.ssh/id_rsa" "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            'echo "SSH connection successful"'
+          then
+            echo "SSH connection successful"
+          else
+            echo "SSH connection failed"
+            exit 1
+          fi
+
+      - name: Test Docker access
+        run: |
+          ssh -i ~/.ssh/id_rsa \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            'docker --version' \
+            || { echo "Docker not accessible"; exit 1; }
+
+      - name: Test Deployment Directory
+        run: |
+          ssh -i ~/.ssh/id_rsa \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            'ls ~/var/opt/ontrack' \
+            || { echo "Deployment directory not accessible"; exit 1; }
+            '
+
+  pull_images:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Pull images on server
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+          '
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ghcr.io/robinkiefer2001/ontrack-backend:latest
+            docker pull ghcr.io/robinkiefer2001/ontrack-frontend:latest
+            docker pull postgres:latest
+          '
+
+    - name: Stop old containers (if any)
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+        "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+        '
+        docker rm -f postgres backend frontend || true
+        '
+
+  build_images:
+    runs-on: ubuntu-latest
+    steps:
       - name: Start postgres
         run: |
-          docker run -d --name postgres \
-            -e POSTGRES_PASSWORD=postgres \
-            -p 5432:5432 \
-            ghcr.io/robinkiefer2001/ontrack-postgres:latest
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            '
+            docker compose -f "~/var/opt/ontrack/docker-compose-build.yml" up -d postgres
+            '
 
       - name: Start backend
         run: |
-          docker run -d --name backend \
-            --link postgres:postgres \
-            -e DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres \
-            -p 8000:8000 \
-            ghcr.io/robinkiefer2001/ontrack-backend:latest
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            '
+            docker compose -f "~/var/opt/ontrack/docker-compose-build.yml" up -d backend
+            '
 
       - name: Start frontend
         run: |
-          docker run -d --name frontend \
-            --link backend:backend \
-            -e BACKEND_URL=http://backend:8000 \
-            -p 5173:5173 \
-            ghcr.io/robinkiefer2001/ontrack-frontend:latest
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
+            '
+            docker compose -f "~/var/opt/ontrack/docker-compose-build.yml" up -d frontend
+            '
