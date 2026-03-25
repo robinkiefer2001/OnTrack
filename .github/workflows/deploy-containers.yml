@@ -1,4 +1,4 @@
-name: Pull & Run Containers
+name: deploy-containers
 
 on:
   workflow_dispatch:
@@ -31,15 +31,15 @@ jobs:
       - name: copy docker-compose-build.yml
         run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ../../container/docker-compose-build.yml \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-build.yml
+            ../../container/docker-compose-deploy.yml \
+            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-deploy.yml
 
       - name: docker compose pull
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
             '
-            docker compose -f ~/var/opt/ontrack/docker-compose-build.yml pull
+            docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml pull
             '
 
   tests:
@@ -106,26 +106,10 @@ jobs:
   build_images:
     runs-on: ubuntu-latest
     steps:
-      - name: Start postgres
+      - name: Start Containers
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
             '
-            docker compose -f "~/var/opt/ontrack/docker-compose-build.yml" up -d postgres
-            '
-
-      - name: Start backend
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
-            '
-            docker compose -f "~/var/opt/ontrack/docker-compose-build.yml" up -d backend
-            '
-
-      - name: Start frontend
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
-            '
-            docker compose -f "~/var/opt/ontrack/docker-compose-build.yml" up -d frontend
+            docker compose -f "~/var/opt/ontrack/docker-compose-deploy.yml" up
             '

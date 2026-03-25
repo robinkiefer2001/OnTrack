@@ -21,22 +21,3 @@ services:
         ipv4_address: 10.20.0.11
     ports:
       - "8000:8000"
-  postgres:
-    image: postgres:latest
-    container_name: ontrack-postgres
-    restart: always
-    environment:
-      POSTGRES_USER: ontrack
-      POSTGRES_PASSWORD: ontrackpass
-      POSTGRES_DB: ontrackdb
-    networks:
-      ontrack-net:
-        ipv4_address: 10.20.0.4
-    ports:
-      - "5432:5432"
-networks:
-  ontrack-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.20.0.0/16

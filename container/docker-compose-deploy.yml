@@ -1,0 +1,29 @@
+version: '3.9'
+services:
+  frontend:
+    container_name: ontrack-frontend
+    hostname: ontrack-frontend
+    image: ghcr.io/robinvdvleuten/ontrack-frontend:latest
+  backend:
+    container_name: ontrack-backend
+    image: ghcr.io/robinvdvleuten/ontrack-backend:latest
+
+postgress:
+    image: postgres:latest
+    container_name: ontrack-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ontrack
+      POSTGRES_PASSWORD: ontrackpass
+      POSTGRES_DB: ontrackdb
+    networks:
+      ontrack-net:
+        ipv4_address: 10.20.0.4
+    ports:
+      - "5432:5432"
+networks:
+  ontrack-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.20.0.0/16
