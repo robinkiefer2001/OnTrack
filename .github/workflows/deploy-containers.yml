@@ -22,9 +22,9 @@ jobs:
       
       - name: Create deployment directory
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
-            "mkdir -p ~/var/opt/ontrack"
+            "mkdir -p ./var/opt/ontrack"
 
       - name: copy docker-compose-build.yml
         run: |
