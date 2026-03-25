@@ -24,7 +24,8 @@ jobs:
         run: |
           ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             "mkdir -p ~/var/opt/ontrack"
-
+      
+      - uses: actions/checkout@v3
       - name: copy docker-compose-deploy
         run: |
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
