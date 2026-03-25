@@ -1,10 +1,10 @@
 name: deploy-containers
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["build-images"]
+    types:
+      - completed
 
 permissions:
   contents: read
