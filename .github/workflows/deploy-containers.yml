@@ -19,13 +19,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-
+      
       - name: Create deployment directory
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
-            mkdir -p ~/var/opt/ontrack
-      
+            "mkdir -p ~/var/opt/ontrack"
+
       - name: copy docker-compose-build.yml
         run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
