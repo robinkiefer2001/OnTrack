@@ -23,7 +23,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build Images
       run: |
-        compose -f ../container/docker-compose-build.yml build
+        compose -f container/docker-compose-build.yml build
 
     - name: Push Images
       run: |
@@ -31,26 +31,3 @@ jobs:
         docker push ghcr.io/${{ github.repository_owner }}/ontrack-frontend:${{ github.sha }}
         docker push ghcr.io/${{ github.repository_owner }}/ontrack-backend:latest
         docker push ghcr.io/${{ github.repository_owner }}/ontrack-backend:${{ github.sha }}
-
-
-  build-and-push:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v5
-        with:
-          file: ../container/frontend/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/ontrack-frontend:latest
-            ghcr.io/${{ github.repository_owner }}/ontrack-frontend:${{ github.sha }}
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v5
-        with:
-          file: ../container/backend/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/ontrack-backend:latest
-            ghcr.io/${{ github.repository_owner }}/ontrack-backend:${{ github.sha }}
