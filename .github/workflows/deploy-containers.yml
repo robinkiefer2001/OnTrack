@@ -39,32 +39,11 @@ jobs:
             '
             docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml pull
             '
-
+            
   tests:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - name: Test Server Connection
-        run: |
-          if ping -c 1 "${{ vars.DEPLOYMENT_ENDPOINT }}"; then
-            echo "Server is reachable"
-          else
-            echo "Server is not reachable"
-            exit 1
-          fi
-
-      - name: Test SSH Connection
-        run: |
-          if ssh -o BatchMode=yes -o ConnectTimeout=5 \
-            -i "./ssh/id_rsa" "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            'echo "SSH connection successful"'
-          then
-            echo "SSH connection successful"
-          else
-            echo "SSH connection failed"
-            exit 1
-          fi
-
       - name: Test Docker access
         run: |
           ssh -i "./ssh/id_rsa" "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
