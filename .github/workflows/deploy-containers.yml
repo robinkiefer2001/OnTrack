@@ -24,10 +24,8 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
-            '
-            mkdir ~/var/opt/ontrack
-            '
-
+            mkdir -p ~/var/opt/ontrack
+      
       - name: copy docker-compose-build.yml
         run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
@@ -72,14 +70,6 @@ jobs:
             "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
             'docker --version' \
             || { echo "Docker not accessible"; exit 1; }
-
-      - name: Test Deployment Directory
-        run: |
-          ssh -i ~/.ssh/id_rsa \
-            "${{ secrets.DEPLOYMENT_USER }}"@"${{ secrets.DEPLOYMENT_ENDPOINT }}" \
-            'ls ~/var/opt/ontrack' \
-            || { echo "Deployment directory not accessible"; exit 1; }
-            '
 
   pull_images:
     runs-on: ubuntu-latest
