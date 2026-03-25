@@ -83,6 +83,7 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker pull ghcr.io/robinkiefer2001/ontrack-backend:latest
             docker pull ghcr.io/robinkiefer2001/ontrack-frontend:latest
+            docker pull postgres:latest
           '
 
     - name: Stop old containers (if any)
