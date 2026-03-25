@@ -49,19 +49,8 @@ jobs:
           docker rm -f postgres backend frontend || true
           '
 
-  tests:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Test Docker access
-        run: |
-          ssh -i "./ssh/id_rsa" "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            'docker --version' \
-            || { echo "Docker not accessible"; exit 1; }
-          '
-
   build_images:
-    needs: tests
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - name: Start Containers
