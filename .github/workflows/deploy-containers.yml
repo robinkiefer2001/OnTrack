@@ -59,9 +59,9 @@ jobs:
             'docker --version' \
             || { echo "Docker not accessible"; exit 1; }
           '
-          
+
   build_images:
-    needs: pull_images
+    needs: tests
     runs-on: ubuntu-latest
     steps:
       - name: Start Containers
