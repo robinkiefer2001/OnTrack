@@ -15,51 +15,54 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Add SSH key
+      - name: add ssh key
         run: |
           mkdir -p ./ssh
-          echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > ./ssh/id_rsa
-          chmod 600 ./ssh/id_rsa
-
+          echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > "./ssh/id_rsa"
+          chmod 600 "./ssh/id_rsa"
+      
       - name: Create deployment directory
         run: |
-          ssh -i ./ssh/id_rsa -o StrictHostKeyChecking=no \
-            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "sudo mkdir -p /var/opt/ontrack && sudo chown \$USER:\$USER /var/opt/ontrack"
-
-      - name: Copy docker-compose-deploy.yml
+          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+            "mkdir -p ~/var/opt/ontrack"
+      
+      - name: copy docker-compose-deploy
         run: |
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-            container/docker-compose-deploy.yml \
-            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":/var/opt/ontrack/docker-compose-deploy.yml
+            container/docker-compose-deploy.yml  \
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-deploy.yml
 
-      - name: Pull images
+      - name: docker compose pull
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "docker compose -f /var/opt/ontrack/docker-compose-deploy.yml pull"
-
-      - name: Stop old containers
+            '
+            docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml pull
+            docker pull postgres:latest
+            '
+            
+      - name: Stop old containers (if any)
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "docker rm -f postgres backend frontend || true"
+          "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+          '
+          docker rm -f postgres backend frontend || true
+          '
 
   build_images:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - name: Add SSH key
+      - name: add ssh key
         run: |
           mkdir -p ./ssh
-          echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > ./ssh/id_rsa
-          chmod 600 ./ssh/id_rsa
-
+          echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > "./ssh/id_rsa"
+          chmod 600 "./ssh/id_rsa"
       - name: Start Containers
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "docker compose -f /var/opt/ontrack/docker-compose-deploy.yml up -d"
+            '
+            docker compose -f "./var/opt/ontrack/docker-compose-deploy.yml" up
+            '
