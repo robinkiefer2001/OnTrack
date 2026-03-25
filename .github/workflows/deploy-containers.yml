@@ -55,7 +55,7 @@ jobs:
     steps:
       - name: Start Containers
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+          ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             '
             docker compose -f "~/var/opt/ontrack/docker-compose-deploy.yml" up
