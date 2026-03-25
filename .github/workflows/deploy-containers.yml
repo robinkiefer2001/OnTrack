@@ -16,24 +16,24 @@ jobs:
     steps:
       - name: add ssh key
         run: |
-          mkdir -p ./ssh
-          echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > "./ssh/id_rsa"
-          chmod 600 "./ssh/id_rsa"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > "~/.ssh/id_rsa"
+          chmod 600 "~/.ssh/id_rsa"
       
       - name: Create deployment directory
         run: |
-          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+          ssh -i "~/.ssh/id_rsa" -o StrictHostKeyChecking=no "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             "mkdir ./var/opt/ontrack"
 
       - name: copy docker-compose-build.yml
         run: |
-          scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             ../../container/docker-compose-deploy.yml \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-deploy.yml
 
       - name: docker compose pull
         run: |
-          ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             '
             docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml pull
@@ -55,7 +55,7 @@ jobs:
       - name: Test SSH Connection
         run: |
           if ssh -o BatchMode=yes -o ConnectTimeout=5 \
-            -i "./ssh/id_rsa" "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+            -i "~/.ssh/id_rsa" "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             'echo "SSH connection successful"'
           then
             echo "SSH connection successful"
@@ -66,7 +66,7 @@ jobs:
 
       - name: Test Docker access
         run: |
-          ssh -i "./ssh/id_rsa" "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+          ssh -i "~/.ssh/id_rsa" "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             'docker --version' \
             || { echo "Docker not accessible"; exit 1; }
 
@@ -76,7 +76,7 @@ jobs:
     steps:
     - name: Pull images on server
       run: |
-        ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
           "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
           '
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -87,7 +87,7 @@ jobs:
 
     - name: Stop old containers (if any)
       run: |
-        ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
         "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
         '
         docker rm -f postgres backend frontend || true
@@ -99,7 +99,7 @@ jobs:
     steps:
       - name: Start Containers
         run: |
-          ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             '
             docker compose -f "~/var/opt/ontrack/docker-compose-deploy.yml" up
