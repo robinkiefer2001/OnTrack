@@ -54,7 +54,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
           "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
           '
-          sudo docker compose down --remove-orphans
+          docker compose down --remove-orphans
           '
 
   build_images:
