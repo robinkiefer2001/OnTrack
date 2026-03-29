@@ -48,14 +48,6 @@ jobs:
           '
           docker rm -f postgres backend frontend || true
           '
-        
-      - name: Remove old Network
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-          "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-          '
-          docker compose down --remove-orphans
-          '
 
   build_images:
     needs: prepare
