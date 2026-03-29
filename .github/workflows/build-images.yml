@@ -27,7 +27,5 @@ jobs:
 
     - name: Push Images
       run: |
-        docker push ghcr.io/${{ github.repository_owner }}/ontrack-frontend:latest
-        docker push ghcr.io/${{ github.repository_owner }}/ontrack-frontend:${{ github.sha }}
-        docker push ghcr.io/${{ github.repository_owner }}/ontrack-backend:latest
-        docker push ghcr.io/${{ github.repository_owner }}/ontrack-backend:${{ github.sha }}
+        docker push ghcr.io/${{ github.repository_owner }}/ontrack-frontend --all-tags
+        docker push ghcr.io/${{ github.repository_owner }}/ontrack-backend --all-tags
