@@ -6,7 +6,7 @@ services:
     hostname: ontrack-frontend
     image: ghcr.io/robinkiefer2001/ontrack-frontend:latest
     ports:
-      - "3000:3000"
+      - "443:443"
 
   backend:
     container_name: ontrack-backend
