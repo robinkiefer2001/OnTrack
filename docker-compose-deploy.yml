@@ -5,14 +5,20 @@ services:
     container_name: ontrack-frontend
     hostname: ontrack-frontend
     image: ghcr.io/robinkiefer2001/ontrack-frontend:latest
-    ports:
-      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`ontrack.informait.ch`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=le"
 
   backend:
     container_name: ontrack-backend
     image: ghcr.io/robinkiefer2001/ontrack-backend:latest
-    ports:
-      - "8000:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`backend.informait.ch`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=le"
 
   postgres:
     image: postgres:latest
@@ -22,5 +28,29 @@ services:
       POSTGRES_USER: ontrack
       POSTGRES_PASSWORD: ontrackpass
       POSTGRES_DB: ontrackdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  proxy:
+    image: traefik:latest
+    container_name: ontrack-proxy
+    restart: always
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=robin_kiefer@outlook.com"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
     ports:
-      - "5432:5432"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik_certs:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  postgres_data:
+  traefik_certs:
