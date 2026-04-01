@@ -63,7 +63,7 @@ services:
       - "traefik.http.routers.traefik.tls.certresolver=le"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=admin:$2a$12$a7VxSBh0VeCTM5DNY9ZyZeB5oW0l.VZpIDAkjCfRGhiIcpPCW4o1K"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$2y$10$kL89oF4coWrWXuzGrE9jsuqIoHlIIlDTwbFQNCabMpS9cpW5h5kKG"
 
       # HTTP → HTTPS Redirect
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
