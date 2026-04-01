@@ -5,18 +5,12 @@ services:
     container_name: ontrack-frontend
     hostname: ontrack-frontend
     image: ghcr.io/robinkiefer2001/ontrack-frontend:latest
-    networks:
-      ontrack-net:
-        ipv4_address: 10.30.1.10
     ports:
       - "3000:3000"
 
   backend:
     container_name: ontrack-backend
     image: ghcr.io/robinkiefer2001/ontrack-backend:latest
-    networks:
-      ontrack-net:
-        ipv4_address: 10.30.1.11
     ports:
       - "8000:8000"
 
@@ -28,15 +22,5 @@ services:
       POSTGRES_USER: ontrack
       POSTGRES_PASSWORD: ontrackpass
       POSTGRES_DB: ontrackdb
-    networks:
-      ontrack-net:
-        ipv4_address: 10.30.1.12
     ports:
       - "5432:5432"
-
-networks:
-  ontrack-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.30.1.0/24
