@@ -13,6 +13,8 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    env:
+      TRAEFIK_AUTH_HASH: ${{ secrets.TRAEFIK_AUTH_HASH }}
     steps:
       - uses: actions/checkout@v3
       - name: add ssh key
