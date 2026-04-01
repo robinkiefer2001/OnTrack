@@ -52,6 +52,8 @@ services:
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.le.acme.email=robin_kiefer@outlook.com"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--api.dashboard=true"
+
     labels:
       - "traefik.enable=true"
 
@@ -60,6 +62,8 @@ services:
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.tls.certresolver=le"
       - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$2a$12$a7VxSBh0VeCTM5DNY9ZyZeB5oW0l.VZpIDAkjCfRGhiIcpPCW4o1K"
 
       # HTTP → HTTPS Redirect
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
