@@ -65,7 +65,7 @@ services:
       - "traefik.http.routers.traefik.middlewares=auth"
 
       # Basic Auth for Dashboard
-      - 'traefik.http.middlewares.auth.basicauth.users=admin:$2y$10$kL89oF4coWrWXuzGrE9jsuqIoHlIIlDTwbFQNCabMpS9cpW5h5kKG'
+      - 'traefik.http.middlewares.auth.basicauth.users=admin:$2b$05$P201vxzXzzb5A71Pg/UcquLSvMQ49p9W0QQx4NBuIbUnaoBxtHBe2'
 
       # HTTP → HTTPS Redirect
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
