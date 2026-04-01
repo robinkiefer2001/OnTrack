@@ -6,13 +6,19 @@ services:
     hostname: ontrack-frontend
     image: ghcr.io/robinkiefer2001/ontrack-frontend:latest
     networks:
-      - ontrack-net
+      ontrack-net:
+        ipv4_address: 10.30.1.10
+    ports:
+      - "3000:3000"
 
   backend:
     container_name: ontrack-backend
     image: ghcr.io/robinkiefer2001/ontrack-backend:latest
     networks:
-      - ontrack-net
+      ontrack-net:
+        ipv4_address: 10.30.1.11
+    ports:
+      - "8000:8000"
 
   postgres:
     image: postgres:latest
