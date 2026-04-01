@@ -8,4 +8,4 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-CMD ["npm", "run", "dev", "--", "--port", "443"]
+CMD ["npm", "run", "dev", "--", "--port", "3000", "--host"]
