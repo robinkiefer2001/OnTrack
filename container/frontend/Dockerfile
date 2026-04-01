@@ -2,7 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY ../frontend/package*.json ./
+# Kopiere package.json und package-lock.json
+COPY package*.json ./
 RUN npm install
-COPY ../frontend/ ./
+COPY . .
 RUN npm run build
