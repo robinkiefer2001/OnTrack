@@ -31,11 +31,47 @@ services:
     container_name: ontrack-postgres
     restart: always
     environment:
-      POSTGRES_USER: ontrack
-      POSTGRES_PASSWORD: ontrackpass
-      POSTGRES_DB: ontrackdb
+      AUTHENTIK_DB_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      POSTGRES_USER: pgroot
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+      POSTGRES_DB: defaultdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - web
+
+  authentik-redis:
+    image: redis:alpine
+    container_name: ontrack-authentik-redis
+    restart: always
+    networks:
+      - web
+
+
+  authentik:
+    image: ghcr.io/goauthentik/server:latest
+    container_name: ontrack-authentik
+    restart: always
+    environment:
+      AUTH_DOMAIN: ${AUTH_DOMAIN}
+      AUTHENTIK_POSTGRESQL__HOST: ontrack-postgres
+      AUTHENTIK_POSTGRESQL__USER: svc_authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_SECRET__KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_REDIS__HOST: ontrack-authentik-redis
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    depends_on:
+      - postgres
+      - authentik-redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authentik.rule=Host(`auth.${AUTH_DOMAIN}`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls.certresolver=letsencrypt"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
     networks:
       - web
 
@@ -53,7 +89,6 @@ services:
       - "--certificatesresolvers.le.acme.email=robin_kiefer@outlook.com"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
       - "--api.dashboard=true"
-
     labels:
       - "traefik.enable=true"
 
@@ -89,3 +124,6 @@ networks:
 volumes:
   postgres_data:
   traefik_certs:
+  authentik_media:
+  authentik_templates:
+
