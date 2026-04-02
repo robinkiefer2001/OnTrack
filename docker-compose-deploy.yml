@@ -55,10 +55,11 @@ services:
     restart: always
     environment:
       AUTH_DOMAIN: ${AUTH_DOMAIN}
+      AUTHENTIK_POSTGRESQL__NAME: AuthentikDB
       AUTHENTIK_POSTGRESQL__HOST: ontrack-postgres
       AUTHENTIK_POSTGRESQL__USER: svc_authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
-      AUTHENTIK_SECRET__KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_REDIS__HOST: ontrack-authentik-redis
     volumes:
       - authentik_media:/media
