@@ -41,7 +41,7 @@ jobs:
         run: |
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             ./frontend/postgres/init/* \
-            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/frontend/postgres/init/
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":/home/github-runner/var/opt/ontrack/frontend/postgres/init/
 
       - name: docker compose pull
         run: |
