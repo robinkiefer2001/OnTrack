@@ -42,13 +42,13 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             ./frontend/postgres/init/* \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":/home/github-runner/var/opt/ontrack/frontend/postgres/init/
-
+      
       - name: Set postgres init script password
         run: |
           ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "sed -i 's|__PASSWORD__|${{ secrets.AUTHENTIK_DB_PASSWORD }}|g' /home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
-
+            "PASSWORD=\$(printf '%s' '${{ secrets.AUTHENTIK_DB_PASSWORD }}'); sed -i \"s|__PASSWORD__|\$PASSWORD|g\" /home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
+      
       - name: docker compose pull
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
