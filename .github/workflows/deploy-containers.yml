@@ -56,10 +56,11 @@ jobs:
               set -euo pipefail
               FILE="/home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
 
-              # Passwort für sed escapen: /, \ und &
-              ESCAPED_PASSWORD=$(printf "%s" "$AUTHENTIK_DB_PASSWORD" | sed -e "s/[\/&]/\\\&/g")
+              # Passwort für sed escapen: \ / & $
+              ESCAPED_PASSWORD=$(printf "%s" "$AUTHENTIK_DB_PASSWORD" | sed -e "s/[\\\/&$]/\\\\&/g")
 
               sed -i "s|__PASSWORD__|$ESCAPED_PASSWORD|g" "$FILE"
+            '
             '
 
       - name: docker compose pull
