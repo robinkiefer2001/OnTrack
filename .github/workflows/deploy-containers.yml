@@ -32,6 +32,12 @@ jobs:
             docker-compose-deploy.yml  \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-deploy.yml
 
+      - name: copy postgres init scripts
+        run: |
+          scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
+            ./frontend/postgres/init/* \
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/frontend/postgres/init/
+
       - name: docker compose pull
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
