@@ -32,7 +32,7 @@ services:
     restart: always
     environment:
       AUTHENTIK_DB_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
-      POSTGRES_USER: pgroot
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
