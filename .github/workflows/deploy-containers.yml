@@ -15,26 +15,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: add ssh key
         run: |
           mkdir -p ./ssh
           echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > "./ssh/id_rsa"
           chmod 600 "./ssh/id_rsa"
-      
+
       - name: Create deployment directory
         run: |
-          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no \
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             "mkdir -p ~/var/opt/ontrack"
-      
+
       - name: copy docker-compose-deploy
         run: |
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-            docker-compose-deploy.yml  \
+            docker-compose-deploy.yml \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-deploy.yml
 
       - name: Create postgres init directory
         run: |
-          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+          ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no \
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             "mkdir -p ~/var/opt/ontrack/frontend/postgres/init"
 
       - name: copy postgres init scripts
@@ -42,13 +45,23 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             ./frontend/postgres/init/* \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":/home/github-runner/var/opt/ontrack/frontend/postgres/init/
-      
+
       - name: Set postgres init script password
+        env:
+          AUTHENTIK_DB_PASSWORD: ${{ secrets.AUTHENTIK_DB_PASSWORD }}
         run: |
           ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "PASSWORD=\$(printf '%s' '${{ secrets.AUTHENTIK_DB_PASSWORD }}'); sed -i \"s|__PASSWORD__|\$PASSWORD|g\" /home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
-      
+            AUTHENTIK_DB_PASSWORD="$(printf '%s' "$AUTHENTIK_DB_PASSWORD")" '
+              set -euo pipefail
+              FILE="/home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
+
+              # Passwort für sed escapen: /, \ und &
+              ESCAPED_PASSWORD=$(printf "%s" "$AUTHENTIK_DB_PASSWORD" | sed -e "s/[\/&]/\\\&/g")
+
+              sed -i "s|__PASSWORD__|$ESCAPED_PASSWORD|g" "$FILE"
+            '
+
       - name: docker compose pull
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
@@ -57,14 +70,14 @@ jobs:
             docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml pull
             docker pull postgres:latest
             '
-            
+
       - name: Stop old containers (if any)
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-          "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-          '
-          docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml down || true
-          '
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+            '
+            docker compose -f ~/var/opt/ontrack/docker-compose-deploy.yml down || true
+            '
 
   build_images:
     needs: prepare
@@ -75,6 +88,7 @@ jobs:
           mkdir -p ./ssh
           echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > "./ssh/id_rsa"
           chmod 600 "./ssh/id_rsa"
+
       - name: Start Containers
         env:
           TRAEFIK_AUTH_HASH: ${{ secrets.TRAEFIK_AUTH_HASH }}
