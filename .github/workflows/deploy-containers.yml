@@ -61,7 +61,7 @@ jobs:
 
               sed -i "s|__PASSWORD__|$ESCAPED_PASSWORD|g" "$FILE"
             '
-            '
+            
 
       - name: docker compose pull
         run: |
