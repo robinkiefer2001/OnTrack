@@ -13,6 +13,8 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    env:
+      AuTHENTIK_DB_PASSWORD: ${{ secrets.AUTHENTIK_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@v3
       - name: add ssh key
@@ -47,7 +49,8 @@ jobs:
         run: |
           ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "sed -i \"s/__PASSWORD__/${{ secrets.AUTHENTIK_DB_PASSWORD }}/g\" /home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
+            "export AUTHENTIK_DB_PASSWORD='${{ secrets.AUTHENTIK_DB_PASSWORD }}' && \
+            sed -i \"s/__PASSWORD__/${AUTHENTIK_DB_PASSWORD}/g\" /home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
 
       - name: docker compose pull
         run: |
