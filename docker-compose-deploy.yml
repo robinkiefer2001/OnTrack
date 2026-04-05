@@ -62,7 +62,7 @@ services:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_REDIS__HOST: ontrack-authentik-redis
       AUTHENTIK_BOOTSTRAP_EMAIL: initadmin@informait.ch
-      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_INIT_ADMIN_PASSWORD}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_INIT_ADMIN_PW}
     volumes:
       - authentik_media:/media
       - authentik_templates:/templates
