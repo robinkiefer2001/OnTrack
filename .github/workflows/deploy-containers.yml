@@ -77,8 +77,20 @@ jobs:
 
               sed -i "s|__ontrackPASSWORD__|$ESCAPED_PASSWORD|g" "$FILE"
             '
+      - name: Write .env file on server
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
+            "cat > ~/var/opt/ontrack/.env <<EOF
+            TRAEFIK_AUTH_HASH='${{ secrets.TRAEFIK_AUTH_HASH }}'
+            AUTH_DOMAIN='${{ vars.AUTH_DOMAIN }}'
+            AUTHENTIK_DB_PASSWORD='${{ secrets.AUTHENTIK_DB_PASSWORD }}'
+            AUTHENTIK_SECRET_KEY='${{ secrets.AUTHENTIK_SECRET_KEY }}'
+            POSTGRES_PASSWORD='${{ secrets.POSTGRES_PASSWORD }}'
+            AUTHENTIK_INIT_ADMIN_PW='${{ secrets.AUTHENTIK_INIT_ADMIN_PW }}'
+            EOF
+            "
             
-
       - name: docker compose pull
         run: |
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
@@ -105,20 +117,6 @@ jobs:
           mkdir -p ./ssh
           echo "${{ secrets.DEPLOYMENT_SSH_KEY }}" > "./ssh/id_rsa"
           chmod 600 "./ssh/id_rsa"
-
-      - name: Write .env file on server
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
-            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "cat > ~/var/opt/ontrack/.env <<EOF
-            TRAEFIK_AUTH_HASH='${{ secrets.TRAEFIK_AUTH_HASH }}'
-            AUTH_DOMAIN='${{ vars.AUTH_DOMAIN }}'
-            AUTHENTIK_DB_PASSWORD='${{ secrets.AUTHENTIK_DB_PASSWORD }}'
-            AUTHENTIK_SECRET_KEY='${{ secrets.AUTHENTIK_SECRET_KEY }}'
-            POSTGRES_PASSWORD='${{ secrets.POSTGRES_PASSWORD }}'
-            AUTHENTIK_INIT_ADMIN_PW='${{ secrets.AUTHENTIK_INIT_ADMIN_PW }}'
-            EOF
-            "
 
       - name: Start Containers
         run: |
