@@ -26,25 +26,25 @@ jobs:
         run: |
           ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "mkdir -p ~/var/opt/ontrack"
+            "mkdir -p $HOME/var/opt/ontrack"
 
       - name: copy docker-compose-deploy
         run: |
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             docker-compose-deploy.yml \
-            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":~/var/opt/ontrack/docker-compose-deploy.yml
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":$HOME/var/opt/ontrack/docker-compose-deploy.yml
 
       - name: Create postgres init directory
         run: |
           ssh -i "./ssh/id_rsa" -o StrictHostKeyChecking=no \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
-            "mkdir -p ~/var/opt/ontrack/frontend/postgres/init"
+            "mkdir -p \$HOME/var/opt/ontrack/frontend/postgres/init"
 
       - name: copy postgres init scripts
         run: |
           scp -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             ./frontend/postgres/init/* \
-            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":/home/github-runner/var/opt/ontrack/frontend/postgres/init/
+            "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}":$HOME/var/opt/ontrack/frontend/postgres/init/
 
       - name: Set postgres init script password
         env:
@@ -54,7 +54,7 @@ jobs:
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             AUTHENTIK_DB_PASSWORD="$(printf '%s' "$AUTHENTIK_DB_PASSWORD")" '
               set -euo pipefail
-              FILE="/home/github-runner/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
+              FILE="$HOME/var/opt/ontrack/frontend/postgres/init/backend-postgress.sql"
 
               # Passwort für sed escapen: \ / & $
               ESCAPED_PASSWORD=$(printf "%s" "$AUTHENTIK_DB_PASSWORD" | sed -e "s/[\\\/&$]/\\\\&/g")

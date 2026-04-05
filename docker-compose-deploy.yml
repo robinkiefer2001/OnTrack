@@ -54,7 +54,7 @@ services:
     container_name: ontrack-authentik
     restart: always
     environment:
-      AUTHENTIK_POSTGRESQL__NAME: AuthentikDB
+      AUTHENTIK_POSTGRESQL__NAME: authentikdb
       AUTHENTIK_POSTGRESQL__HOST: ontrack-postgres
       AUTHENTIK_POSTGRESQL__USER: svc_authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
