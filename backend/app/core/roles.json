@@ -1,0 +1,49 @@
+[
+  {
+    "name": "Admin",
+    "permissions": [
+      "projects.create", "projects.edit", "projects.delete", "projects.view", "projects.assign_team",
+      "tasks.create", "tasks.edit", "tasks.delete", "tasks.view",
+      "users.create", "users.edit", "users.delete", "users.view",
+      "customers.create", "customers.edit", "customers.delete", "customers.view",
+      "roles.manage", "rates.manage", "employment.manage", "admin.access"
+    ]
+  },
+  {
+    "name": "ProjectManager",
+    "permissions": [
+      "projects.create", "projects.edit", "projects.view", "projects.assign_team",
+      "tasks.create", "tasks.edit", "tasks.delete", "tasks.view",
+      "users.view",
+      "customers.create", "customers.edit", "customers.view",
+      "employment.manage"
+    ]
+  },
+  {
+    "name": "TeamLead",
+    "permissions": [
+      "projects.view", "projects.assign_team",
+      "tasks.create", "tasks.edit", "tasks.view",
+      "users.view",
+      "customers.view"
+    ]
+  },
+  {
+    "name": "Developer",
+    "permissions": [
+      "projects.view",
+      "tasks.edit", "tasks.view",
+      "users.view",
+      "customers.view"
+    ]
+  },
+  {
+    "name": "Viewer",
+    "permissions": [
+      "projects.view",
+      "tasks.view",
+      "users.view",
+      "customers.view"
+    ]
+  }
+]

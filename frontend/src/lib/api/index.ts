@@ -1,11 +1,10 @@
-import { mockApiClient } from "$lib/api/mock";
+import { httpApiClient } from "$lib/api/http";
 import type { ApiClient } from "$lib/api/types";
 
 /**
  * The active API client.
- * Currently points to the mock implementation.
- * Replace with a real HTTP client when the backend is ready.
+ * Now points to the real HTTP client.
  */
-export const api: ApiClient = mockApiClient;
+export const api: ApiClient = httpApiClient;
 
 export type { ApiClient, AuthResult, CompanyEmployee, RoleDefinition, RoleName, Permission } from "$lib/api/types";

@@ -61,6 +61,8 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_REDIS__HOST: ontrack-authentik-redis
+      AUTHENTIK_BOOTSTRAP_EMAIL: initadmin@informait.ch
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_INIT_ADMIN_PASSWORD}
     volumes:
       - authentik_media:/media
       - authentik_templates:/templates
@@ -73,6 +75,22 @@ services:
       - "traefik.http.routers.authentik.entrypoints=websecure"
       - "traefik.http.routers.authentik.tls.certresolver=le"
       - "traefik.http.services.authentik.loadbalancer.server.port=9000"
+      - AUTHENTIK_TOKEN=dein_api_token
+    networks:
+      - web
+
+  authentik-token-init:
+    image: curlimages/curl:latest
+    container_name: ontrack-authentik-token-init
+    entrypoint: ["/bin/sh", "/authentik-token-init.sh"]
+    volumes:
+      - ./authentik-token-init.sh:/authentik-token-init.sh:ro
+      - authentik_token:/authentik-token
+    environment:
+      AUTHENTIK_ADMIN_USER: initadmin@informait.ch
+      AUTHENTIK_ADMIN_PASSWORD: ${AUTHENTIK_INIT_ADMIN_PASSWORD}
+    depends_on:
+      - authentik
     networks:
       - web
 
@@ -150,4 +168,4 @@ volumes:
   traefik_certs:
   authentik_media:
   authentik_templates:
-
+  authentik_token:
