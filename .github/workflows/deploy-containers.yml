@@ -132,5 +132,6 @@ jobs:
             "
             export $(cat ~/var/opt/ontrack/.env | xargs) && \
             export TRAEFIK_AUTH_HASH=$TRAEFIK_AUTH_HASH && \
+            export AUTHTHENTIK_INIT_ADMIN_PW=$AUTHENTIK_INIT_ADMIN_PW && \
             docker compose -f ./var/opt/ontrack/docker-compose-deploy.yml up -d
             "
