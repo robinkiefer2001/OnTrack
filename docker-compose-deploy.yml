@@ -88,7 +88,7 @@ services:
       - authentik_token:/authentik-token
     environment:
       AUTHENTIK_ADMIN_USER: initadmin@informait.ch
-      AUTHENTIK_ADMIN_PASSWORD: ${AUTHENTIK_INIT_ADMIN_PASSWORD}
+      AUTHENTIK_ADMIN_PASSWORD: ${AUTHENTIK_INIT_ADMIN_PW}
     depends_on:
       - authentik
     networks:
