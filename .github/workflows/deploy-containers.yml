@@ -82,7 +82,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ./ssh/id_rsa \
             "${{ vars.DEPLOYMENT_USER }}"@"${{ vars.DEPLOYMENT_ENDPOINT }}" \
             "cat > ~/var/opt/ontrack/.env <<EOF
-            TRAEFIK_AUTH_HASH='${{ secrets.TRAEFIK_AUTH_HASH }}'
             AUTH_DOMAIN='${{ vars.AUTH_DOMAIN }}'
             AUTHENTIK_DB_PASSWORD='${{ secrets.AUTHENTIK_DB_PASSWORD }}'
             AUTHENTIK_SECRET_KEY='${{ secrets.AUTHENTIK_SECRET_KEY }}'
